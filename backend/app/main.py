@@ -1,15 +1,22 @@
 from fastapi import FastAPI, Request, HTTPException, Body, Path, Query, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.security import HTTPBearer, OAuth2PasswordRequestForm
 from pymongo.errors import DuplicateKeyError
 import logging
 from typing import List
 from bson import ObjectId
 
+from routers.pdf import pdf_router  # Ensure PYTHONPATH includes parent folder of 'backend'
 from .db import db
 from .utils import UserRegister, UserRead  # UserRegister for registration/login data, UserRead for output
-from .auth import verify_password, get_password_hash, create_access_token, decode_access_token
+from .auth import (
+    verify_password,
+    get_password_hash,
+    create_access_token,
+    decode_access_token,
+    get_current_user,
+)
 
 app = FastAPI()
 
@@ -21,16 +28,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# CORS Middleware - adjust allow_origins for production to frontend URL
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Change to your frontend URL in prod
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token")
-
+security = HTTPBearer()  # This line is just for clarity; not directly used here, used inside auth.py
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
@@ -49,9 +56,10 @@ async def ensure_indexes():
 # -------------
 # Authentication / User registration
 
+
 @app.post("/register", response_model=UserRead)
 async def register(user: UserRegister = Body(...)):
-    hashed_password = get_password_hash(user.password)  # You should add password to UserRegister model!
+    hashed_password = get_password_hash(user.password)  # Ensure password field present in UserRegister
     user_dict = user.dict()
     user_dict["password"] = hashed_password
     try:
@@ -61,18 +69,18 @@ async def register(user: UserRegister = Body(...)):
 
     created = await db.users.find_one({"_id": result.inserted_id})
     created["_id"] = str(created["_id"])
-    # Remove password before sending back
     created.pop("password", None)
     return UserRead(**created)
 
 
 @app.post("/token")
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+    # Note: OAuth2PasswordRequestForm expects form data with 'username' (used for your email) and 'password'
     user_doc = await db.users.find_one({"email": form_data.username})
     if not user_doc or not verify_password(form_data.password, user_doc.get("password", "")):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
+            detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
     token_data = {"sub": user_doc["email"]}
@@ -80,36 +88,12 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     return {"access_token": access_token, "token_type": "bearer"}
 
 
-async def get_current_user(token: str = Depends(oauth2_scheme)):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    try:
-        payload = decode_access_token(token)
-        email: str = payload.get("sub")
-        if email is None:
-            raise credentials_exception
-    except Exception:
-        raise credentials_exception
-
-    user_doc = await db.users.find_one({"email": email})
-    if not user_doc:
-        raise credentials_exception
-    user_doc["_id"] = str(user_doc["_id"])
-    user_doc.pop("password", None)  # Remove sensitive info
-    return user_doc
-
-
 @app.get("/users/me", response_model=UserRead)
 async def read_users_me(current_user: dict = Depends(get_current_user)):
     return UserRead(**current_user)
 
-# -------------
 
-# Your existing routes here (GET /users, POST /users [if different from register], PUT, DELETE)  
-# Adjust POST /users if it is redundant with /register for user creation.
+# User CRUD routes
 
 
 @app.get("/test-db")
@@ -124,7 +108,7 @@ async def get_users(
     skip: int = Query(0, ge=0),
     name: str = Query(None),
     email: str = Query(None),
-    current_user: dict = Depends(get_current_user)  # Protect this endpoint
+    current_user: dict = Depends(get_current_user),  # Protect endpoint
 ):
     query = {}
     if name:
@@ -146,7 +130,7 @@ async def get_users(
 async def update_user(
     user_id: str = Path(...),
     user_update: UserRegister = Body(...),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ):
     if not ObjectId.is_valid(user_id):
         raise HTTPException(status_code=400, detail="Invalid user ID")
@@ -171,7 +155,7 @@ async def update_user(
 @app.delete("/users/{user_id}")
 async def delete_user(
     user_id: str = Path(...),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ):
     if not ObjectId.is_valid(user_id):
         raise HTTPException(status_code=400, detail="Invalid user ID")
@@ -186,3 +170,7 @@ async def delete_user(
 @app.get("/")
 async def root():
     return {"message": "Hello, Research AI Companion backend is up and running!"}
+
+
+# Include the PDF upload router (secured with dependency injection in pdf.py)
+app.include_router(pdf_router)
