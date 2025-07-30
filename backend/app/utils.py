@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field, EmailStr, validator, model_validator, model_serializer
 from bson import ObjectId
 
+
 class PyObjectId(ObjectId):
     @classmethod
     @model_validator(mode='before')
@@ -21,6 +22,7 @@ class PyObjectId(ObjectId):
     @classmethod
     def __get_pydantic_json_schema__(cls, core_schema, handler):
         return {"type": "string"}
+
 
 class UserRegister(BaseModel):
     name: str = Field(..., min_length=3, max_length=50, description="User's full name")
