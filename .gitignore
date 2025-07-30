@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+.env
+.env.*
+*.sqlite3
+db.sqlite3
+
+# Jupyter
+.ipynb_checkpoints
+
+# Node/Frontend
+node_modules/
+build/
+dist/
+.npm/
+.yarn/
+.pnpm-debug.log
+.vite/
+
+# OS & IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Docker
+*.log
+docker-compose.override.yml
+docker-compose-local.yml
+
+# Local Tools/Test
+coverage/
+htmlcov/
+*.cover
+.cache/
+pytest_cache/
+.mypy_cache/
+*.test.env
+
+# Models & Data
+models/
+vector_db/
+grobid/
+*.gguf
+
+# Backups
+*.bak
+dump.rdb
+
+# Misc
+*.swp
+*~
