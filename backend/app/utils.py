@@ -1,10 +1,17 @@
-from pydantic import BaseModel, Field, EmailStr, validator, model_validator, model_serializer
+from pydantic import (
+    BaseModel,
+    Field,
+    EmailStr,
+    validator,
+    model_validator,
+    model_serializer,
+)
 from bson import ObjectId
 
 
 class PyObjectId(ObjectId):
     @classmethod
-    @model_validator(mode='before')
+    @model_validator(mode="before")
     def validate(cls, v):
         if isinstance(v, cls):
             return v
@@ -29,7 +36,7 @@ class UserRegister(BaseModel):
     email: EmailStr = Field(..., description="User's email address")
     password: str = Field(..., min_length=8, max_length=128)
 
-    @validator('name')
+    @validator("name")
     def validate_name(cls, v):
         if not v.replace(" ", "").isalpha():
             raise ValueError("Name must contain only alphabetic characters and spaces")

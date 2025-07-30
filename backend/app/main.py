@@ -7,14 +7,18 @@ import logging
 from typing import List
 from bson import ObjectId
 
-from routers.pdf import pdf_router  # Ensure PYTHONPATH includes parent folder of 'backend'
+from routers.pdf import (
+    pdf_router,
+)  # Ensure PYTHONPATH includes parent folder of 'backend'
 from .db import db
-from .utils import UserRegister, UserRead  # UserRegister for registration/login data, UserRead for output
+from .utils import (
+    UserRegister,
+    UserRead,
+)  # UserRegister for registration/login data, UserRead for output
 from .auth import (
     verify_password,
     get_password_hash,
     create_access_token,
-    decode_access_token,
     get_current_user,
 )
 
@@ -37,13 +41,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-security = HTTPBearer()  # This line is just for clarity; not directly used here, used inside auth.py
+security = (
+    HTTPBearer()
+)  # This line is just for clarity; not directly used here, used inside auth.py
+
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     logger.info(f"Incoming request: {request.method} {request.url}")
     response = await call_next(request)
-    logger.info(f"Response status: {response.status_code} for {request.method} {request.url}")
+    logger.info(
+        f"Response status: {response.status_code} for {request.method} {request.url}"
+    )
     return response
 
 
@@ -59,7 +68,9 @@ async def ensure_indexes():
 
 @app.post("/register", response_model=UserRead)
 async def register(user: UserRegister = Body(...)):
-    hashed_password = get_password_hash(user.password)  # Ensure password field present in UserRegister
+    hashed_password = get_password_hash(
+        user.password
+    )  # Ensure password field present in UserRegister
     user_dict = user.dict()
     user_dict["password"] = hashed_password
     try:
@@ -75,9 +86,10 @@ async def register(user: UserRegister = Body(...)):
 
 @app.post("/token")
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
-    # Note: OAuth2PasswordRequestForm expects form data with 'username' (used for your email) and 'password'
     user_doc = await db.users.find_one({"email": form_data.username})
-    if not user_doc or not verify_password(form_data.password, user_doc.get("password", "")):
+    if not user_doc or not verify_password(
+        form_data.password, user_doc.get("password", "")
+    ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
