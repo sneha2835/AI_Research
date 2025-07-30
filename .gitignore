@@ -42,8 +42,11 @@ pytest_cache/
 
 # Models & Data
 models/
+!models/.gitkeep       # Allow tracking .gitkeep to keep folder
 vector_db/
+!vector_db/.gitkeep    # Same here
 grobid/
+!grobid/.gitkeep      # Same here
 *.gguf
 
 # Backups
