@@ -56,3 +56,5 @@ dump.rdb
 # Misc
 *.swp
 *~
+
+backend/datasets/research-papers/papers/
