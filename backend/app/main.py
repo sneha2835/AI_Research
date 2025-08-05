@@ -7,7 +7,7 @@ import logging
 from typing import List
 from bson import ObjectId
 
-from routers.pdf import (
+from backend.routers.pdf import(
     pdf_router,
 )  # Ensure PYTHONPATH includes parent folder of 'backend'
 from .db import db
