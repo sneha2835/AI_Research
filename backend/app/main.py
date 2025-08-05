@@ -6,16 +6,18 @@ from pymongo.errors import DuplicateKeyError
 import logging
 from typing import List
 from bson import ObjectId
+from dotenv import load_dotenv
+load_dotenv()
 
-from backend.routers.pdf import(
+from backend.routers.pdf_chunking import(
     pdf_router,
 )  # Ensure PYTHONPATH includes parent folder of 'backend'
-from .db import db
-from .utils import (
+from backend.app.db import db
+from backend.app.utils import (
     UserRegister,
     UserRead,
 )  # UserRegister for registration/login data, UserRead for output
-from .auth import (
+from backend.app.auth import (
     verify_password,
     get_password_hash,
     create_access_token,
