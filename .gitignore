@@ -56,3 +56,6 @@ dump.rdb
 # Misc
 *.swp
 *~
+
+venv/
+.env
