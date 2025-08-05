@@ -10,8 +10,8 @@ from bson import ObjectId
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
-from app.auth import get_current_user
-from app.db import db
+from ..app.auth import get_current_user
+from ..app.db import db
 
 pdf_router = APIRouter(prefix="/pdf", tags=["PDF"])
 
