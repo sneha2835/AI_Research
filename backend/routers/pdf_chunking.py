@@ -26,7 +26,7 @@ UPLOAD_DIR = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "pdf_uploads")
 )
 os.makedirs(UPLOAD_DIR, exist_ok=True)
-MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MB
+MAX_UPLOAD_SIZE = 50 * 1024 * 1024
 
 
 def sanitize_filename(filename: str) -> str:
@@ -83,10 +83,6 @@ async def upload_pdf(
         raise HTTPException(
             status_code=500, detail="Internal server error while saving metadata."
         )
-
-    logger.info(
-        f"User {current_user.get('email', 'unknown')} uploaded file {original_filename} saved as {safe_filename}"
-    )
 
     return JSONResponse(
         status_code=HTTP_201_CREATED,
@@ -151,7 +147,7 @@ async def delete_pdf(metadata_id: str, current_user: dict = Depends(get_current_
     return {"message": "File deleted successfully."}
 
 
-ENABLE_CHROMA = True  # Enable embedding + Chroma integration
+ENABLE_CHROMA = True
 
 
 @pdf_router.get("/extract_chunks/{metadata_id}")
@@ -195,6 +191,7 @@ async def extract_pdf_chunks(metadata_id: str, current_user: dict = Depends(get_
 async def search_pdf_chunks(
     query: str = Query(..., min_length=3),
     n_results: int = Query(5, ge=1, le=20),
+    current_user: dict = Depends(get_current_user),
 ):
     chunks = semantic_search(query, n_results)
     return {"query": query, "results": chunks}
@@ -217,14 +214,13 @@ async def ask_pdf(
         f"Question: {query}\n"
         f"Answer:"
     )
-    # Connect your agentic AI or LLM here for generation
     answer = generate_answer(prompt)
     return {"answer": answer}
 
 
 @pdf_router.post("/summarize")
 async def summarize_text(
-    text: str = Body(..., embed=True),  # raw text or fetched context
+    text: str = Body(..., embed=True),
     style: str = Query("paragraph", enum=["paragraph", "bullet_points"]),
 ):
     if style == "paragraph":
@@ -244,6 +240,7 @@ async def chat_with_followup(
     question: str = Body(..., embed=True),
     n_results: int = Query(5, ge=1, le=10),
     previous_answer: Optional[str] = Body(None),
+    current_user: dict = Depends(get_current_user),
 ):
     chunks = semantic_search(question, n_results)
     if not chunks:

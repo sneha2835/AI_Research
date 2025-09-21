@@ -1,5 +1,6 @@
+import os
 from datetime import datetime, timedelta
-from jose import jwt, JWTError
+from jose import jwt, JWTError, ExpiredSignatureError
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -8,13 +9,13 @@ from typing import Optional
 from .db import db
 
 # JWT settings (use env vars for production secrets!)
-SECRET_KEY = "CHANGE_THIS_TO_A_RANDOM_SECRET_STRING"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
+SECRET_KEY = os.getenv("JWT_SECRET", "CHANGE_THIS_TO_A_RANDOM_SECRET_STRING")
+ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 60))
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-security = HTTPBearer()  # <-- Use HTTPBearer here instead of OAuth2PasswordBearer
+security = HTTPBearer()
 
 
 def verify_password(plain_password, hashed_password):
@@ -49,6 +50,12 @@ async def get_current_user(token: HTTPAuthorizationCredentials = Depends(securit
         email: str = payload.get("sub")
         if email is None:
             raise credentials_exception
+    except ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     except JWTError:
         raise credentials_exception
 
@@ -56,5 +63,5 @@ async def get_current_user(token: HTTPAuthorizationCredentials = Depends(securit
     if not user_doc:
         raise credentials_exception
     user_doc["_id"] = str(user_doc["_id"])
-    user_doc.pop("password", None)  # Remove sensitive info
+    user_doc.pop("password", None)
     return user_doc
