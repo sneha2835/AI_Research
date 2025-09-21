@@ -1,19 +1,24 @@
 import os
 import uuid
 from datetime import datetime
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Query
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Query, Body
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.logger import logger
 from starlette.status import HTTP_201_CREATED
 from bson import ObjectId
+from typing import Optional
 
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 from backend.app.auth import get_current_user
 from backend.app.db import db
-from backend.app.chroma_store import semantic_search
-from langchain_google_genai import GoogleGenerativeAI
+from backend.app.chroma_store import add_chunks_to_chroma, semantic_search
+from backend.app.llm_inference import (
+    generate_answer,
+    generate_summary,
+    generate_followup_questions,
+)
 
 pdf_router = APIRouter(prefix="/pdf", tags=["PDF"])
 
@@ -146,10 +151,14 @@ async def delete_pdf(metadata_id: str, current_user: dict = Depends(get_current_
     return {"message": "File deleted successfully."}
 
 
+ENABLE_CHROMA = True  # Enable embedding + Chroma integration
+
+
 @pdf_router.get("/extract_chunks/{metadata_id}")
 async def extract_pdf_chunks(metadata_id: str, current_user: dict = Depends(get_current_user)):
     file_doc = await db.pdf_files.find_one({
-        "_id": ObjectId(metadata_id), "user_id": current_user["_id"]
+        "_id": ObjectId(metadata_id),
+        "user_id": current_user["_id"]
     })
     if not file_doc:
         raise HTTPException(status_code=404, detail="File not found or access denied")
@@ -163,8 +172,8 @@ async def extract_pdf_chunks(metadata_id: str, current_user: dict = Depends(get_
     splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
     chunks = splitter.split_documents(docs)
 
-    from backend.app.chroma_store import add_chunks_to_chroma
-    add_chunks_to_chroma(chunks, metadata_id)
+    if ENABLE_CHROMA:
+        add_chunks_to_chroma(chunks, metadata_id)
 
     chunk_results = [
         {
@@ -181,7 +190,6 @@ async def extract_pdf_chunks(metadata_id: str, current_user: dict = Depends(get_
         "chunks": chunk_results,
     })
 
-llm = GoogleGenerativeAI(model="models/gemini-1.5-pro-latest")
 
 @pdf_router.get("/search")
 async def search_pdf_chunks(
@@ -190,6 +198,7 @@ async def search_pdf_chunks(
 ):
     chunks = semantic_search(query, n_results)
     return {"query": query, "results": chunks}
+
 
 @pdf_router.get("/ask")
 async def ask_pdf(
@@ -208,5 +217,60 @@ async def ask_pdf(
         f"Question: {query}\n"
         f"Answer:"
     )
-    answer = llm.invoke(prompt)
+    # Connect your agentic AI or LLM here for generation
+    answer = generate_answer(prompt)
     return {"answer": answer}
+
+
+@pdf_router.post("/summarize")
+async def summarize_text(
+    text: str = Body(..., embed=True),  # raw text or fetched context
+    style: str = Query("paragraph", enum=["paragraph", "bullet_points"]),
+):
+    if style == "paragraph":
+        prompt = (
+            f"Summarize the following text into a concise paragraph:\n\n{text}"
+        )
+    else:
+        prompt = (
+            f"Summarize the following text into bullet points:\n\n{text}"
+        )
+    summary = generate_summary(prompt)
+    return {"summary": summary}
+
+
+@pdf_router.post("/chat")
+async def chat_with_followup(
+    question: str = Body(..., embed=True),
+    n_results: int = Query(5, ge=1, le=10),
+    previous_answer: Optional[str] = Body(None),
+):
+    chunks = semantic_search(question, n_results)
+    if not chunks:
+        raise HTTPException(status_code=404, detail="No relevant documents found.")
+
+    context = "\n\n".join([chunk.page_content for chunk in chunks])
+
+    prompt_answer = (
+        f"Answer the question based only on the following context:\n\n"
+        f"{context}\n\n"
+        f"Question: {question}\nAnswer:"
+    )
+    answer = generate_answer(prompt_answer)
+
+    followups = []
+    if previous_answer is None:
+        prompt_followups = (
+            f"Based on the question:\n{question}\n"
+            f"and the answer:\n{answer}\n"
+            f"Generate 3 relevant and natural follow-up questions a user might ask next:"
+        )
+        followup_text = generate_followup_questions(prompt_followups)
+        followups = [
+            q.strip("-. \n\t") for q in followup_text.split("\n") if q.strip()
+        ][:3]
+
+    return {
+        "answer": answer,
+        "follow_up_questions": followups,
+    }
