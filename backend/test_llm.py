@@ -1,31 +1,47 @@
-# test_llm_phi3.py
-from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+import torch
+import os
+from dotenv import load_dotenv
 
-# Model selection
-model_name = "microsoft/phi-3-mini-128k-instruct"
+# Load environment variables
+load_dotenv()
+HF_MODEL = os.getenv("HF_MODEL")
+HF_TOKEN = os.getenv("HF_TOKEN")
 
-# Load tokenizer
-tokenizer = AutoTokenizer.from_pretrained(model_name)
+device = "cpu"
 
-# Load model (CPU)
-model = AutoModelForCausalLM.from_pretrained(
-    model_name,
-    device_map="auto",  # will use CPU
-    torch_dtype="auto"  # let HF decide best dtype
+print(f"Loading tokenizer for {HF_MODEL}...")
+tokenizer = AutoTokenizer.from_pretrained(HF_MODEL, token=HF_TOKEN)
+
+# BitsAndBytesConfig for 4-bit quantization on CPU
+bnb_config = BitsAndBytesConfig(
+    load_in_4bit=True,
+    bnb_4bit_use_double_quant=True,
+    bnb_4bit_quant_type="nf4",
+    bnb_4bit_compute_dtype=torch.float32,  # CPU friendly
+    llm_int8_enable_fp32_cpu_offload=True  # keep layers in fp32 on CPU if needed
 )
 
-# Create a text-generation pipeline
-llm_pipeline = pipeline("text-generation", model=model, tokenizer=tokenizer)
+print(f"Loading model {HF_MODEL} in 4-bit on CPU...")
+model = AutoModelForCausalLM.from_pretrained(
+    HF_MODEL,
+    quantization_config=bnb_config,
+    device_map={"": "cpu"},  # force all layers to CPU
+    token=HF_TOKEN
+)
 
-# Example input (you can replace this with PDF-extracted text)
-input_text = """
-Summarize the following research text: 
-'The study explores the impact of climate change on crop yields over the past 50 years, 
-highlighting the importance of adaptive farming techniques.'
-"""
+prompt = "Write a short poem about the ocean."
+inputs = tokenizer(prompt, return_tensors="pt").to(device)
 
-# Generate summary
-output = llm_pipeline(input_text, max_length=150, do_sample=True, temperature=0.7)
+print("Generating text...")
+with torch.no_grad():
+    output_ids = model.generate(
+        **inputs,
+        max_new_tokens=100,
+        do_sample=True,
+        temperature=0.7
+    )
 
-print("=== Generated Output ===")
-print(output[0]['generated_text'])
+output_text = tokenizer.decode(output_ids[0], skip_special_tokens=True)
+print("\n--- Generated Text ---\n")
+print(output_text)

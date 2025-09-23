@@ -1,4 +1,5 @@
 import os
+import aiofiles
 import uuid
 from datetime import datetime
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Query, Body
@@ -7,6 +8,8 @@ from fastapi.logger import logger
 from starlette.status import HTTP_201_CREATED
 from bson import ObjectId
 from typing import Optional
+
+from PyPDF2 import PdfReader
 
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -52,17 +55,26 @@ async def upload_pdf(
     safe_filename = f"{unique_prefix}_{original_filename}"
     file_location = os.path.join(UPLOAD_DIR, safe_filename)
 
+    content = await file.read()
+    if len(content) > MAX_UPLOAD_SIZE:
+        raise HTTPException(status_code=413, detail="File too large")
+
     try:
-        content = await file.read()
-        if len(content) > MAX_UPLOAD_SIZE:
-            raise HTTPException(status_code=413, detail="File too large")
-        with open(file_location, "wb") as f:
-            f.write(content)
+        async with aiofiles.open(file_location, "wb") as f:
+            await f.write(content)
     except Exception as e:
         logger.error(f"Error while saving uploaded file: {e}")
         raise HTTPException(
             status_code=500, detail="Internal server error while saving the file."
         )
+
+    # Extract PDF metadata (pages)
+    try:
+        with open(file_location, "rb") as f:
+            reader = PdfReader(f)
+            page_count = len(reader.pages)
+    except Exception:
+        page_count = None
 
     file_doc = {
         "user_id": current_user["_id"],
@@ -72,6 +84,7 @@ async def upload_pdf(
         "path": file_location,
         "uploaded_at": datetime.utcnow(),
         "size_bytes": len(content),
+        "page_count": page_count,
     }
 
     try:
@@ -92,6 +105,7 @@ async def upload_pdf(
             "stored_filename": safe_filename,
             "metadata_id": str(result.inserted_id),
             "size_bytes": len(content),
+            "page_count": page_count,
         },
     )
 

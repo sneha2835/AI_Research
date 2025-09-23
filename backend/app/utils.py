@@ -1,11 +1,4 @@
-from pydantic import (
-    BaseModel,
-    Field,
-    EmailStr,
-    validator,
-    model_validator,
-    model_serializer,
-)
+from pydantic import BaseModel, Field, EmailStr, validator, model_validator, model_serializer
 from bson import ObjectId
 
 
@@ -49,4 +42,4 @@ class UserRead(BaseModel):
     email: EmailStr
 
     class Config:
-        populate_by_name = True
+        allow_population_by_field_name = True

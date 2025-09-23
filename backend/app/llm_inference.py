@@ -1,7 +1,7 @@
 import os
 import threading
 
-HUGGINGFACE_MODEL = os.getenv("HF_MODEL", "microsoft/Phi-3.5-mini-instruct")
+HUGGINGFACE_MODEL = os.getenv("HF_MODEL", "microsoft/phi-3-mini-128k-instruct")
 
 if os.getenv("HF_HOME"):
     os.environ['HF_HOME'] = os.getenv('HF_HOME')
