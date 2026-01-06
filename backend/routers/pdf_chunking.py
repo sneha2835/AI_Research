@@ -233,7 +233,7 @@ async def extract_pdf_chunks(
     chunks = splitter.split_documents(docs)
 
     if ENABLE_CHROMA:
-        add_chunks_to_chroma(chunks, metadata_id)
+        add_chunks_to_chroma(chunks, doc_id=metadata_id,user_id=current_user["_id"])
 
     await db.chunks.insert_one({
         "metadata_id": metadata_id,
@@ -272,10 +272,12 @@ async def ask_pdf(
     current_user: dict = Depends(get_current_user),
 ):
     chunks = semantic_search(
-        payload.query,
-        payload.n_results,
-        metadata_id=payload.metadata_id   # 🔥 IMPORTANT
-    )
+    query=payload.query,
+    n_results=payload.n_results,
+    metadata_id=payload.metadata_id,
+    user_id=current_user["_id"]
+)
+
 
     if not chunks:
         return {"answer": "I could not find this information in the document."}

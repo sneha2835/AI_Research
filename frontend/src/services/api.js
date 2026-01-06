@@ -42,8 +42,8 @@ export const pdfAPI = {
     api.get('/pdf/search', { params: { query, n_results: nResults } }),
   ask: (query, nResults = 5) => 
     api.post('/pdf/ask', { query, conversation_history: '', n_results: nResults }),
-  askWithHistory: (query, conversationHistory = '', nResults = 5) =>
-    api.post('/pdf/ask', { query, conversation_history: conversationHistory, n_results: nResults }),
+  askWithHistory: (metadata_id, query, conversationHistory = '', nResults = 5) =>
+    api.post('/pdf/ask', { metadata_id, query, conversation_history: conversationHistory, n_results: nResults }),
   chat: (question, nResults = 5) =>
     api.post('/pdf/chat', { question }, { params: { n_results: nResults } }),
   deletePDF: (metadataId) => api.delete(`/pdf/delete/${metadataId}`),

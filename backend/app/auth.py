@@ -1,3 +1,6 @@
+if not os.getenv("JWT_SECRET"):
+    raise RuntimeError("JWT_SECRET not set")
+
 import os
 from datetime import datetime, timedelta
 from typing import Optional, Dict

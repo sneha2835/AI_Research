@@ -33,12 +33,40 @@ vector_store = Chroma(
 )
 
 
-def add_chunks_to_chroma(text_chunks, doc_id: str):
-    texts = [chunk.page_content for chunk in text_chunks]
-    metadatas = [{"page_number": chunk.metadata.get("page", -1)} for chunk in text_chunks]
-    ids = [f"{doc_id}_{i}" for i in range(len(text_chunks))]
+# backend/app/chroma_store.py
 
-    vector_store.add_texts(texts=texts, metadatas=metadatas, ids=ids)
+def add_chunks_to_chroma(
+    text_chunks,
+    doc_id: str,
+    user_id: str | None = None
+):
+    """
+    Store PDF chunks in Chroma with proper metadata for scoped retrieval.
+    """
+
+    texts = []
+    metadatas = []
+    ids = []
+
+    for i, chunk in enumerate(text_chunks):
+        texts.append(chunk.page_content)
+
+        metadatas.append({
+            "metadata_id": doc_id,                 # PDF-level isolation
+            "user_id": user_id,                    # User-level isolation
+            "page_number": chunk.metadata.get("page", -1)
+        })
+
+        ids.append(f"{doc_id}_{i}")
+
+    if not texts:
+        return
+
+    vector_store.add_texts(
+        texts=texts,
+        metadatas=metadatas,
+        ids=ids
+    )
 
     try:
         vector_store.persist()
@@ -46,5 +74,29 @@ def add_chunks_to_chroma(text_chunks, doc_id: str):
         pass
 
 
-def semantic_search(query: str, n_results=5):
+def semantic_search(
+    query: str,
+    n_results: int = 5,
+    metadata_id: str | None = None,
+    user_id: str | None = None,
+):
+    """
+    Perform scoped semantic search over Chroma.
+    """
+
+    filters = {}
+
+    if metadata_id:
+        filters["metadata_id"] = metadata_id
+
+    if user_id:
+        filters["user_id"] = user_id
+
+    if filters:
+        return vector_store.similarity_search(
+            query,
+            k=n_results,
+            filter=filters
+        )
+
     return vector_store.similarity_search(query, k=n_results)

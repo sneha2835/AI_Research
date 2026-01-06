@@ -102,7 +102,7 @@ const Chat = () => {
         .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
         .join('\n\n');
 
-      const response = await pdfAPI.askWithHistory(inputValue, conversationHistory);
+      const response = await pdfAPI.askWithHistory( metadataId, inputValue, conversationHistory);
       const assistantMessage = {
         role: 'assistant',
         content: response.data.answer
