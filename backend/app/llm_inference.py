@@ -1,53 +1,70 @@
-import os
+# backend/app/llm_inference.py
+
 import threading
+from transformers import pipeline
+from backend.app.prompts import QA_PROMPT, SUMMARY_PROMPT
 
-HUGGINGFACE_MODEL = os.getenv("HF_MODEL", "microsoft/phi-3-mini-128k-instruct")
+# ---------------- GLOBALS ----------------
+_lock = threading.Lock()
+_text2text = None
 
-if os.getenv("HF_HOME"):
-    os.environ['HF_HOME'] = os.getenv('HF_HOME')
-if os.getenv('TRANSFORMERS_CACHE'):
-    os.environ['TRANSFORMERS_CACHE'] = os.getenv('TRANSFORMERS_CACHE')
-if os.getenv('HUGGINGFACE_HUB_CACHE'):
-    os.environ['HUGGINGFACE_HUB_CACHE'] = os.getenv('HUGGINGFACE_HUB_CACHE')
-
-_llm_lock = threading.Lock()
-_llm_pipeline = None
+MODEL_NAME = "google/flan-t5-base"   # ✅ Google model
 
 
-def _ensure_llm_loaded():
-    global _llm_pipeline
-    if _llm_pipeline is not None:
+def _load_model():
+    """
+    Lazy-load model once.
+    CPU-only, deterministic, no hallucinations.
+    """
+    global _text2text
+    if _text2text is not None:
         return
 
-    with _llm_lock:
-        if _llm_pipeline is not None:
+    with _lock:
+        if _text2text is not None:
             return
-        from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
 
-        tokenizer = AutoTokenizer.from_pretrained(HUGGINGFACE_MODEL, trust_remote_code=True)
-        model = AutoModelForCausalLM.from_pretrained(HUGGINGFACE_MODEL, trust_remote_code=True)
-
-        _llm_pipeline = pipeline(
-            "text-generation",
-            model=model,
-            tokenizer=tokenizer,
-            max_new_tokens=int(os.getenv("LLM_MAX_NEW_TOKENS", 300)),
-            temperature=float(os.getenv("LLM_TEMPERATURE", 0.3)),
+        _text2text = pipeline(
+            "text2text-generation",
+            model=MODEL_NAME,
+            tokenizer=MODEL_NAME,
+            device=-1,               # CPU
+            max_new_tokens=200,
+            do_sample=False          # IMPORTANT: disables hallucination
         )
 
 
-def generate_answer(prompt: str) -> str:
-    _ensure_llm_loaded()
-    outputs = _llm_pipeline(prompt)
-    text = outputs[0]["generated_text"]
-    if text.startswith(prompt):
-        return text[len(prompt):].strip()
-    return text.strip()
+# ---------------- QA ----------------
+def answer_from_context(context: str, question: str) -> str:
+    _load_model()
+
+    if not context.strip():
+        return "I could not find this information in the document."
+
+    # HARD truncate context (FLAN max ~512 tokens)
+    words = context.split()
+    if len(words) > 350:
+        context = " ".join(words[:350])
+
+    prompt = QA_PROMPT.format(
+        context=context.strip(),
+        question=question.strip()
+    )
+
+    result = _text2text(prompt)
+    return result[0]["generated_text"].strip()
 
 
-def generate_summary(prompt: str) -> str:
-    return generate_answer(prompt)
+# ---------------- SUMMARY ----------------
+def summarize_text(text: str) -> str:
+    _load_model()
 
+    # HARD truncate
+    words = text.split()
+    if len(words) > 300:
+        text = " ".join(words[:300])
 
-def generate_followup_questions(prompt: str) -> str:
-    return generate_answer(prompt)
+    prompt = SUMMARY_PROMPT.format(text=text.strip())
+
+    result = _text2text(prompt)
+    return result[0]["generated_text"].strip()
