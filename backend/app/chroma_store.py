@@ -84,19 +84,29 @@ def semantic_search(
     Perform scoped semantic search over Chroma.
     """
 
-    filters = {}
+    where_clause = None
 
-    if metadata_id:
-        filters["metadata_id"] = metadata_id
+    if metadata_id and user_id:
+        where_clause = {
+            "$and": [
+                {"metadata_id": metadata_id},
+                {"user_id": user_id}
+            ]
+        }
+    elif metadata_id:
+        where_clause = {
+            "metadata_id": metadata_id
+        }
+    elif user_id:
+        where_clause = {
+            "user_id": user_id
+        }
 
-    if user_id:
-        filters["user_id"] = user_id
-
-    if filters:
+    if where_clause:
         return vector_store.similarity_search(
             query,
             k=n_results,
-            filter=filters
+            filter=where_clause
         )
 
     return vector_store.similarity_search(query, k=n_results)

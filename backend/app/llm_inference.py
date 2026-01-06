@@ -2,20 +2,16 @@
 
 import threading
 from transformers import pipeline
-from backend.app.prompts import QA_PROMPT, SUMMARY_PROMPT
 
 # ---------------- GLOBALS ----------------
 _lock = threading.Lock()
 _text2text = None
 
-MODEL_NAME = "google/flan-t5-base"   # ✅ Google model
+MODEL_NAME = "google/flan-t5-base"
 
 
 def _load_model():
-    """
-    Lazy-load model once.
-    CPU-only, deterministic, no hallucinations.
-    """
+    """Lazy-load model once (CPU, deterministic)."""
     global _text2text
     if _text2text is not None:
         return
@@ -28,43 +24,60 @@ def _load_model():
             "text2text-generation",
             model=MODEL_NAME,
             tokenizer=MODEL_NAME,
-            device=-1,               # CPU
-            max_new_tokens=200,
-            do_sample=False          # IMPORTANT: disables hallucination
-        )
+            device=-1,
+            max_new_tokens=150,
+            do_sample=False,
+            repetition_penalty=1.3,     # ⭐ IMPORTANT
+            num_beams=4                 # ⭐ IMPORTANT
+)
 
 
 # ---------------- QA ----------------
-def answer_from_context(context: str, question: str) -> str:
+def answer_from_context(prompt: str) -> str:
     _load_model()
 
-    if not context.strip():
-        return "I could not find this information in the document."
+    if not prompt.strip():
+        return "No prompt provided."
 
-    # HARD truncate context (FLAN max ~512 tokens)
-    words = context.split()
-    if len(words) > 350:
-        context = " ".join(words[:350])
-
-    prompt = QA_PROMPT.format(
-        context=context.strip(),
-        question=question.strip()
+    result = _text2text(
+        prompt,
+        max_new_tokens=200,
+        truncation=True,
     )
 
-    result = _text2text(prompt)
-    return result[0]["generated_text"].strip()
+    if not result or "generated_text" not in result[0]:
+        return "The model did not return an answer."
+
+    answer = result[0]["generated_text"].strip()
+
+    if not answer:
+        return "The model could not generate an answer."
+
+    return answer
 
 
 # ---------------- SUMMARY ----------------
 def summarize_text(text: str) -> str:
     _load_model()
 
-    # HARD truncate
-    words = text.split()
-    if len(words) > 300:
-        text = " ".join(words[:300])
+    if not text.strip():
+        return "No text provided."
 
-    prompt = SUMMARY_PROMPT.format(text=text.strip())
+    prompt = f"""
+Summarize the following text clearly and concisely:
 
-    result = _text2text(prompt)
+{text}
+
+Summary:
+""".strip()
+
+    result = _text2text(
+        prompt,
+        max_new_tokens=200,
+        truncation=True,
+    )
+
+    if not result:
+        return "Summary could not be generated."
+
     return result[0]["generated_text"].strip()
