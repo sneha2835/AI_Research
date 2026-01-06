@@ -1,10 +1,11 @@
-if not os.getenv("JWT_SECRET"):
-    raise RuntimeError("JWT_SECRET not set")
+# backend/app/auth.py
 
 import os
 from datetime import datetime, timedelta
 from typing import Optional, Dict
+from pathlib import Path
 
+from dotenv import load_dotenv
 from jose import jwt, JWTError, ExpiredSignatureError
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
@@ -12,15 +13,44 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from .db import db
 
-# JWT settings (use env vars for production secrets!)
-SECRET_KEY = os.getenv("JWT_SECRET", "CHANGE_THIS_TO_A_RANDOM_SECRET_STRING")
+
+# --------------------------------------------------
+# Load environment variables (SAFE & CROSS-PLATFORM)
+# --------------------------------------------------
+
+# Try project root (.env)
+project_root_env = Path(__file__).resolve().parents[2] / ".env"
+backend_env = Path(__file__).resolve().parents[1] / ".env"
+
+if project_root_env.exists():
+    load_dotenv(project_root_env)
+elif backend_env.exists():
+    load_dotenv(backend_env)
+else:
+    load_dotenv()  # fallback (env vars already set)
+
+# --------------------------------------------------
+# JWT SETTINGS (FAIL FAST IF MISCONFIGURED)
+# --------------------------------------------------
+
+SECRET_KEY = os.getenv("JWT_SECRET")
+if not SECRET_KEY:
+    raise RuntimeError("JWT_SECRET not set")
+
 ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 60))
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# --------------------------------------------------
+# SECURITY SETUP
+# --------------------------------------------------
 
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
 
+
+# --------------------------------------------------
+# PASSWORD HELPERS
+# --------------------------------------------------
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
@@ -30,8 +60,13 @@ def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
 
+# --------------------------------------------------
+# JWT HELPERS
+# --------------------------------------------------
+
 def create_access_token(
-    data: dict, expires_delta: Optional[timedelta] = None
+    data: dict,
+    expires_delta: Optional[timedelta] = None,
 ) -> str:
     to_encode = data.copy()
     expire = datetime.utcnow() + (
@@ -45,6 +80,10 @@ def decode_access_token(token: str) -> dict:
     return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
 
 
+# --------------------------------------------------
+# CURRENT USER DEPENDENCY
+# --------------------------------------------------
+
 async def get_current_user(
     token: HTTPAuthorizationCredentials = Depends(security),
 ) -> Dict:
@@ -53,11 +92,13 @@ async def get_current_user(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
     try:
         payload = decode_access_token(token.credentials)
         email: Optional[str] = payload.get("sub")
         if email is None:
             raise credentials_exception
+
     except ExpiredSignatureError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -70,6 +111,7 @@ async def get_current_user(
     user_doc = await db.users.find_one({"email": email})
     if not user_doc:
         raise credentials_exception
+
     user_doc["_id"] = str(user_doc["_id"])
     user_doc.pop("password", None)
     return user_doc
