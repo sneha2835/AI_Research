@@ -1,3 +1,5 @@
+# backend/routers/pdf_chunking.py
+
 import os
 import uuid
 import aiofiles
@@ -13,7 +15,7 @@ from fastapi import (
     Query,
     Body,
 )
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import FileResponse
 from fastapi.logger import logger
 from starlette.status import HTTP_201_CREATED
 from bson import ObjectId
@@ -23,15 +25,17 @@ from PyPDF2 import PdfReader
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
+from pydantic import BaseModel
+
 from backend.app.auth import get_current_user
 from backend.app.db import db
 from backend.app.chroma_store import add_chunks_to_chroma, semantic_search
-from backend.app.llm_inference import (
-    answer_from_context,
-    summarize_text as llm_summarize,
-)
+from backend.app.llm_inference import answer_from_context, summarize_text as llm_summarize
 
-from pydantic import BaseModel
+
+# ==================================================
+# Request models
+# ==================================================
 
 class AskRequest(BaseModel):
     metadata_id: str
@@ -45,9 +49,10 @@ class ChatMessage(BaseModel):
     role: str
     content: str
 
-# ------------------------------------------------------------------
+
+# ==================================================
 # Router setup
-# ------------------------------------------------------------------
+# ==================================================
 
 pdf_router = APIRouter(prefix="/pdf", tags=["PDF"])
 
@@ -60,9 +65,9 @@ MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MB
 ENABLE_CHROMA = True
 
 
-# ------------------------------------------------------------------
+# ==================================================
 # Helpers
-# ------------------------------------------------------------------
+# ==================================================
 
 def sanitize_filename(filename: str) -> str:
     filename = os.path.basename(filename)
@@ -71,9 +76,9 @@ def sanitize_filename(filename: str) -> str:
     ).strip()
 
 
-# ------------------------------------------------------------------
+# ==================================================
 # Upload PDF
-# ------------------------------------------------------------------
+# ==================================================
 
 @pdf_router.post("/upload", status_code=HTTP_201_CREATED)
 async def upload_pdf(
@@ -102,7 +107,6 @@ async def upload_pdf(
         logger.error(f"File save failed: {e}")
         raise HTTPException(status_code=500, detail="Failed to save file.")
 
-    # Extract page count
     try:
         with open(file_path, "rb") as f:
             reader = PdfReader(f)
@@ -132,9 +136,9 @@ async def upload_pdf(
     }
 
 
-# ------------------------------------------------------------------
+# ==================================================
 # List uploads
-# ------------------------------------------------------------------
+# ==================================================
 
 @pdf_router.get("/my_uploads")
 async def list_my_uploads(current_user: dict = Depends(get_current_user)):
@@ -154,9 +158,9 @@ async def list_my_uploads(current_user: dict = Depends(get_current_user)):
     return {"files": files}
 
 
-# ------------------------------------------------------------------
+# ==================================================
 # Download PDF
-# ------------------------------------------------------------------
+# ==================================================
 
 @pdf_router.get("/download/{metadata_id}")
 async def download_pdf(
@@ -179,9 +183,9 @@ async def download_pdf(
     )
 
 
-# ------------------------------------------------------------------
+# ==================================================
 # Delete PDF
-# ------------------------------------------------------------------
+# ==================================================
 
 @pdf_router.delete("/delete/{metadata_id}")
 async def delete_pdf(
@@ -202,9 +206,9 @@ async def delete_pdf(
     return {"message": "File deleted successfully."}
 
 
-# ------------------------------------------------------------------
+# ==================================================
 # Extract & index chunks
-# ------------------------------------------------------------------
+# ==================================================
 
 @pdf_router.get("/extract_chunks/{metadata_id}")
 async def extract_pdf_chunks(
@@ -217,13 +221,11 @@ async def extract_pdf_chunks(
     if not file_doc:
         raise HTTPException(status_code=404, detail="File not found.")
 
-    # ✅ check FIRST
     existing = await db.chunks.find_one({"metadata_id": metadata_id})
     if existing:
         return {"status": "already_processed"}
 
-    file_path = file_doc["path"]
-    loader = PyPDFLoader(file_path)
+    loader = PyPDFLoader(file_doc["path"])
     docs = loader.load()
 
     splitter = RecursiveCharacterTextSplitter(
@@ -233,13 +235,17 @@ async def extract_pdf_chunks(
     chunks = splitter.split_documents(docs)
 
     if ENABLE_CHROMA:
-        add_chunks_to_chroma(chunks, doc_id=metadata_id,user_id=current_user["_id"])
+        add_chunks_to_chroma(
+            chunks,
+            doc_id=metadata_id,
+            user_id=current_user["_id"],
+        )
 
     await db.chunks.insert_one({
         "metadata_id": metadata_id,
         "user_id": current_user["_id"],
         "created_at": datetime.utcnow(),
-        "chunk_count": len(chunks)
+        "chunk_count": len(chunks),
     })
 
     return {
@@ -248,9 +254,9 @@ async def extract_pdf_chunks(
     }
 
 
-# ------------------------------------------------------------------
+# ==================================================
 # Semantic search
-# ------------------------------------------------------------------
+# ==================================================
 
 @pdf_router.get("/search")
 async def search_pdf_chunks(
@@ -258,13 +264,17 @@ async def search_pdf_chunks(
     n_results: int = Query(5, ge=1, le=20),
     current_user: dict = Depends(get_current_user),
 ):
-    results = semantic_search(query, n_results)
+    results = semantic_search(
+        query=query,
+        n_results=n_results,
+        user_id=current_user["_id"],
+    )
     return {"query": query, "results": results}
 
 
-# ------------------------------------------------------------------
-# Ask question (RAG – NO hallucination)
-# ------------------------------------------------------------------
+# ==================================================
+# Ask question (RAG)
+# ==================================================
 
 @pdf_router.post("/ask")
 async def ask_pdf(
@@ -273,32 +283,40 @@ async def ask_pdf(
 ):
     chunks = semantic_search(
     query=payload.query,
-    n_results=payload.n_results,
+    n_results=max(payload.n_results, 8),  # force more context
     metadata_id=payload.metadata_id,
-    user_id=current_user["_id"]
+    user_id=current_user["_id"],
 )
 
 
     if not chunks:
-        return {"answer": "I could not find this information in the document."}
+        return {"answer": "No relevant information was found in the document."}
 
-    context = "\n\n".join(c.page_content for c in chunks)
+    context = "\n\n".join(chunk.page_content for chunk in chunks)
+    context = context[:3500]  # safe for FLAN-T5
 
-    full_context = f"""
-Conversation so far:
-{payload.conversation_history}
+    prompt = f"""
+Answer the question using ONLY the information in the document excerpts.
+Write a complete, well-formed paragraph (2–4 sentences).
+Do NOT answer with a single word or phrase.
 
-Document context:
+Document excerpts:
 {context}
+
+Question:
+{payload.query}
+
+Answer in full sentences:
 """.strip()
 
-    answer = answer_from_context(full_context, payload.query)
+
+    answer = answer_from_context(prompt)
     return {"answer": answer}
 
 
-# ------------------------------------------------------------------
+# ==================================================
 # Summarize arbitrary text
-# ------------------------------------------------------------------
+# ==================================================
 
 @pdf_router.post("/summarize")
 async def summarize_text_endpoint(
@@ -306,6 +324,11 @@ async def summarize_text_endpoint(
 ):
     summary = llm_summarize(text)
     return {"summary": summary}
+
+
+# ==================================================
+# Chat history
+# ==================================================
 
 @pdf_router.post("/chat/save")
 async def save_chat_message(
@@ -317,9 +340,10 @@ async def save_chat_message(
         "user_id": current_user["_id"],
         "role": msg.role,
         "content": msg.content,
-        "timestamp": datetime.utcnow()
+        "timestamp": datetime.utcnow(),
     })
     return {"status": "saved"}
+
 
 @pdf_router.get("/chat/history/{metadata_id}")
 async def get_chat_history(
@@ -334,10 +358,11 @@ async def get_chat_history(
     async for doc in cursor:
         messages.append({
             "role": doc["role"],
-            "content": doc["content"]
+            "content": doc["content"],
         })
 
     return {"messages": messages}
+
 
 @pdf_router.delete("/chat/history/{metadata_id}")
 async def clear_chat_history(
@@ -346,6 +371,6 @@ async def clear_chat_history(
 ):
     await db.chat_history.delete_many({
         "metadata_id": metadata_id,
-        "user_id": current_user["_id"]
+        "user_id": current_user["_id"],
     })
     return {"status": "cleared"}
