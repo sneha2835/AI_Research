@@ -22,11 +22,12 @@ app.include_router(pdf_chunking.pdf_router)   # PDF endpoints last
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # Logging
 logging.basicConfig(level=logging.INFO)
