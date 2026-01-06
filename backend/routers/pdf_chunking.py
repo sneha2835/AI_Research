@@ -5,9 +5,11 @@ from datetime import datetime
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Query, Body
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.logger import logger
+from fastapi.concurrency import run_in_threadpool
 from starlette.status import HTTP_201_CREATED
 from bson import ObjectId
 from typing import Optional
+from pydantic import BaseModel
 
 from PyPDF2 import PdfReader
 
@@ -17,10 +19,12 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from backend.app.auth import get_current_user
 from backend.app.db import db
 from backend.app.chroma_store import add_chunks_to_chroma, semantic_search
-from backend.app.llm_inference import (
+from backend.app.llm_inference_groq import (
     generate_answer,
     generate_summary,
     generate_followup_questions,
+    search_web,
+    format_web_results,
 )
 
 pdf_router = APIRouter(prefix="/pdf", tags=["PDF"])
@@ -211,24 +215,46 @@ async def search_pdf_chunks(
     return {"query": query, "results": chunks}
 
 
-@pdf_router.get("/ask")
+class AskRequest(BaseModel):
+    query: str
+    conversation_history: str = ''
+    n_results: int = 5
+
+@pdf_router.post("/ask")
 async def ask_pdf(
-    query: str = Query(..., min_length=3),
-    n_results: int = Query(5, ge=1, le=10),
+    request: AskRequest,
     current_user: dict = Depends(get_current_user),
 ):
-    chunks = semantic_search(query, n_results)
+    # Security: Input sanitization
+    query = request.query[:2000]
+    query = "".join(c for c in query if c.isprintable())
+    
+    chunks = semantic_search(query, request.n_results)
     if not chunks:
         raise HTTPException(status_code=404, detail="No relevant documents found.")
 
     context = "\n\n".join([chunk.page_content for chunk in chunks])
-    prompt = (
-        f"Answer the question based only on the following context:\n\n"
-        f"{context}\n\n"
-        f"Question: {query}\n"
-        f"Answer:"
-    )
-    answer = generate_answer(prompt)
+    
+    # Build prompt with conversation history for memory
+    if request.conversation_history:
+        prompt = (
+            f"You are a helpful AI assistant analyzing a document. "
+            f"Here is the conversation history:\n\n{request.conversation_history}\n\n"
+            f"Now, based on the following context from the document, answer the user's question:\n\n"
+            f"Context: {context}\n\n"
+            f"Current Question: {query}\n\n"
+            f"Answer (considering the conversation history and the document context):"
+        )
+    else:
+        prompt = (
+            f"Answer the question based only on the following context:\n\n"
+            f"{context}\n\n"
+            f"Question: {query}\n"
+            f"Answer:"
+        )
+    
+    # Run blocking LLM call in thread pool
+    answer = await run_in_threadpool(generate_answer, prompt)
     return {"answer": answer}
 
 
@@ -237,6 +263,10 @@ async def summarize_text(
     text: str = Body(..., embed=True),
     style: str = Query("paragraph", enum=["paragraph", "bullet_points"]),
 ):
+    # Security: Input sanitization
+    text = text[:10000]  # Cap summary text length
+    text = "".join(c for c in text if c.isprintable())
+    
     if style == "paragraph":
         prompt = (
             f"Summarize the following text into a concise paragraph:\n\n{text}"
@@ -245,7 +275,9 @@ async def summarize_text(
         prompt = (
             f"Summarize the following text into bullet points:\n\n{text}"
         )
-    summary = generate_summary(prompt)
+    
+    # Run blocking LLM call in thread pool
+    summary = await run_in_threadpool(generate_summary, prompt)
     return {"summary": summary}
 
 
@@ -256,18 +288,62 @@ async def chat_with_followup(
     previous_answer: Optional[str] = Body(None),
     current_user: dict = Depends(get_current_user),
 ):
+    # Generate request ID for observability
+    request_id = uuid.uuid4().hex[:8]
+    logger.info(f"[{request_id}] Chat request started")
+    
+    # Security: Prompt injection protection
+    question = question[:2000]  # Hard cap
+    question = "".join(c for c in question if c.isprintable())  # Strip control chars
+    
     chunks = semantic_search(question, n_results)
     if not chunks:
         raise HTTPException(status_code=404, detail="No relevant documents found.")
 
     context = "\n\n".join([chunk.page_content for chunk in chunks])
 
+    # First, try to answer from the PDF context
     prompt_answer = (
-        f"Answer the question based only on the following context:\n\n"
-        f"{context}\n\n"
-        f"Question: {question}\nAnswer:"
+        f"You are a document-only Q&A assistant. You can ONLY answer from the provided context below.\n\n"
+        f"ABSOLUTE RULES:\n"
+        f"1. DO NOT use your general knowledge or training data\n"
+        f"2. DO NOT provide information from memory or common knowledge\n"
+        f"3. ONLY look at the context provided below\n"
+        f"4. If the answer IS in the context → provide a clear answer\n"
+        f"5. If the answer is NOT in the context → respond with exactly: NOT_IN_DOCUMENT\n"
+        f"6. Do NOT add explanations, disclaimers, or alternatives\n"
+        f"7. If the context does not fully answer the question, say so explicitly\n\n"
+        f"Context from PDF:\n{context}\n\n"
+        f"Question: {question}\n\n"
+        f"Answer (from context only, or exactly 'NOT_IN_DOCUMENT'):"
     )
-    answer = generate_answer(prompt_answer)
+    
+    # Run blocking LLM call in thread pool
+    answer = await run_in_threadpool(generate_answer, prompt_answer)
+    
+    # Strict equality check for NOT_IN_DOCUMENT detection
+    if answer.strip() == "NOT_IN_DOCUMENT":
+        logger.info(f"[{request_id}] Answer not in document, searching web")
+        
+        # Run blocking web search in thread pool
+        web_results_structured = await run_in_threadpool(search_web, question)
+        web_results_formatted = format_web_results(web_results_structured)
+        
+        # Generate answer with citation discipline
+        web_prompt = (
+            f"Answer the question ONLY using the web search results below.\n\n"
+            f"Rules:\n"
+            f"- Do NOT use your prior knowledge\n"
+            f"- Cite sources inline as [1], [2], [3]\n"
+            f"- If unsure or results are insufficient, say so explicitly\n"
+            f"- Be concise and factual\n\n"
+            f"Web Search Results:\n{web_results_formatted}\n\n"
+            f"Question: {question}\n\n"
+            f"Answer (cite sources):"
+        )
+        
+        web_answer = await run_in_threadpool(generate_answer, web_prompt)
+        answer = f"📄 This information was not found in the PDF document.\n\n🌐 Here's what I found on the web:\n\n{web_answer}"
 
     followups = []
     if previous_answer is None:
@@ -276,12 +352,81 @@ async def chat_with_followup(
             f"and the answer:\n{answer}\n"
             f"Generate 3 relevant and natural follow-up questions a user might ask next:"
         )
-        followup_text = generate_followup_questions(prompt_followups)
+        followup_text = await run_in_threadpool(generate_followup_questions, prompt_followups)
         followups = [
             q.strip("-. \n\t") for q in followup_text.split("\n") if q.strip()
         ][:3]
 
+    logger.info(f"[{request_id}] Chat request completed")
     return {
         "answer": answer,
         "follow_up_questions": followups,
     }
+
+
+# Chat History Endpoints
+class ChatMessage(BaseModel):
+    metadata_id: str
+    role: str  # 'user' or 'assistant'
+    content: str
+    timestamp: Optional[datetime] = None
+
+
+@pdf_router.post("/chat/save")
+async def save_chat_message(
+    message: ChatMessage,
+    current_user: dict = Depends(get_current_user),
+):
+    """Save a single chat message to the database"""
+    message_data = {
+        "metadata_id": message.metadata_id,
+        "user_id": current_user["_id"],
+        "role": message.role,
+        "content": message.content,
+        "timestamp": message.timestamp or datetime.utcnow(),
+    }
+    
+    result = await db.chat_history.insert_one(message_data)
+    return {"message_id": str(result.inserted_id)}
+
+
+@pdf_router.get("/chat/history/{metadata_id}")
+async def get_chat_history(
+    metadata_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Retrieve chat history for a specific PDF"""
+    # Verify user has access to this PDF
+    file_doc = await db.pdf_files.find_one({
+        "_id": ObjectId(metadata_id),
+        "user_id": current_user["_id"]
+    })
+    if not file_doc:
+        raise HTTPException(status_code=404, detail="File not found or access denied")
+    
+    # Get chat history
+    messages = await db.chat_history.find({
+        "metadata_id": metadata_id,
+        "user_id": current_user["_id"]
+    }).sort("timestamp", 1).to_list(length=None)
+    
+    # Convert ObjectId to string for JSON serialization
+    for msg in messages:
+        msg["_id"] = str(msg["_id"])
+        msg["user_id"] = str(msg["user_id"])
+    
+    return {"messages": messages}
+
+
+@pdf_router.delete("/chat/history/{metadata_id}")
+async def clear_chat_history(
+    metadata_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Clear chat history for a specific PDF"""
+    result = await db.chat_history.delete_many({
+        "metadata_id": metadata_id,
+        "user_id": current_user["_id"]
+    })
+    
+    return {"deleted_count": result.deleted_count}
