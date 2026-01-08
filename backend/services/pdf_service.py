@@ -1,52 +1,49 @@
 # backend/services/pdf_service.py
 
-import os
-from datetime import datetime
-from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-
-from backend.app.db import db
+from langchain.schema import Document
 from backend.app.chroma_store import add_chunks_to_chroma
+from pypdf import PdfReader
 
-async def extract_and_index_pdf(document: dict) -> int:
-    """
-    Extracts PDF → chunks → embeddings.
-    Runs ONLY ONCE per document.
-    """
+def detect_section(text: str) -> str:
+    text_l = text.lower()
+    if "abstract" in text_l[:200]:
+        return "abstract"
+    if "introduction" in text_l[:200]:
+        return "introduction"
+    if "references" in text_l[:200]:
+        return "references"
+    return "body"
 
-    # already indexed
-    existing = await db.chunks.find_one({
-        "document_id": str(document["_id"])
-    })
-    if existing:
-        return existing["chunk_count"]
+async def extract_and_index_pdf(document: dict):
+    reader = PdfReader(document["path"])
+    text = ""
 
-    # safety guard
-    if not document.get("path") or not os.path.exists(document["path"]):
-        return 0
+    for page in reader.pages:
+        page_txt = page.extract_text()
+        if page_txt:
+            text += page_txt + "\n"
 
-    loader = PyPDFLoader(document["path"])
-    docs = loader.load()
-
+    # cleaner split
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000,
-        chunk_overlap=100,
-    )
-    chunks = splitter.split_documents(docs)
-
-    if not chunks:
-        return 0
-
-    add_chunks_to_chroma(
-        chunks=chunks,
-        doc_id=str(document["_id"]),
-        user_id=document.get("owner"),
+        chunk_size=600,
+        chunk_overlap=150,
+        separators=["\n\n", "\n", " ", ""]
     )
 
-    await db.chunks.insert_one({
-        "document_id": str(document["_id"]),
-        "created_at": datetime.utcnow(),
-        "chunk_count": len(chunks),
-    })
+    raw_chunks = splitter.split_text(text)
 
-    return len(chunks)
+    from langchain.schema import Document
+    chunks = []
+    for raw in raw_chunks:
+        section = detect_section(raw)
+        chunks.append(Document(
+            page_content=raw,
+            metadata={
+                "metadata_id": str(document["_id"]),
+                "user_id": str(document["owner"]),
+                "section": section,
+            },
+        ))
+
+    add_chunks_to_chroma(chunks, str(document["_id"]), document["owner"])

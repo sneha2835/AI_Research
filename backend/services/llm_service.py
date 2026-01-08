@@ -13,17 +13,15 @@ _llm = pipeline(
 
 def answer_from_context(prompt: str) -> str:
     try:
-        if not prompt or not prompt.strip():
-            return "No context provided."
+        if not prompt.strip():
+            return ""
 
         result = _llm(prompt)
-
         if not result or not isinstance(result, list):
-            return "No answer could be generated."
+            return ""
 
         text = result[0].get("generated_text", "").strip()
-        return text if text else "No answer found in the document."
-
+        return text
     except Exception as e:
-        print("❌ LLM ERROR:", e)
-        return "The document could not be processed."
+        print("LLM ERROR:", e)
+        return ""

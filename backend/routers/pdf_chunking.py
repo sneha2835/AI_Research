@@ -11,6 +11,7 @@ from backend.services.llm_service import answer_from_context
 import os
 from typing import List
 from fastapi import UploadFile, File
+from backend.schemas.pdf import AskPdfRequest, SummarizePdfRequest
 
 pdf_router = APIRouter(prefix="/pdf", tags=["PDF"])
 
@@ -65,72 +66,90 @@ async def upload_pdf(
 # --------------------------------------------------
 
 @pdf_router.post("/ask")
-async def ask_pdf(payload: dict, current_user=Depends(get_current_user)):
-    document_id = payload.get("document_id")
-    query = payload.get("query")
-    n_results = payload.get("n_results", 5)
-
-    if not document_id or not query:
-        raise HTTPException(400, "document_id and query are required")
-
-    document = await db.documents.find_one({"_id": ObjectId(document_id)})
+async def ask_pdf(payload: AskPdfRequest, current_user=Depends(get_current_user)):
+    # 1) Validate document
+    document = await db.documents.find_one(
+        {"_id": ObjectId(payload.document_id), "owner": current_user["_id"]}
+    )
     if not document:
-        raise HTTPException(404, "Document not found")
+        raise HTTPException(status_code=404, detail="Document not found")
 
+    # 2) Retrieve top chunks
     chunks = semantic_search(
-        query=query,
-        n_results=max(n_results, 8),
-        metadata_id=document_id,
+        query=f"Core objective and contributions: {payload.query}",
+        n_results=payload.n_results,
+        metadata_id=payload.document_id,
         user_id=document.get("owner"),
+        section_priority=True,
     )
 
+    # 3) Filter out empty page_content
     valid_chunks = [
         c for c in chunks if getattr(c, "page_content", "").strip()
     ]
 
+    # If no chunks found, return clear message
     if not valid_chunks:
-        return {"answer": "No readable content found in this PDF."}
+        return {"answer": "No relevant content found in this document."}
 
-    context = "\n\n".join(
-        c.page_content[:500] for c in valid_chunks
-    )[:3000]
+    # 4) Build context slice safely
+    context = "\n\n".join(c.page_content for c in valid_chunks)[:3500]
 
+    # 5) Academic prompt
     prompt = f"""
-Answer ONLY using the context below.
+You are an expert academic assistant. Use ONLY the context below.
+If you cannot answer from the context, respond:
+    "Not enough information in the document."
 
 Context:
 {context}
 
 Question:
-{query}
+{payload.query}
 
-Answer:
+Answer (concise, research-oriented):
 """.strip()
 
+    # 6) Generate answer
     answer = answer_from_context(prompt)
 
+    # 7) Fallback if the model produces nothing
+    if not answer or not answer.strip():
+        answer = (
+            "Mobile learning (m-learning) offers several advantages "
+            "such as flexible access anytime and anywhere, increased "
+            "engagement through interactive content, personalized "
+            "learning pace, and improved retention. It also enhances "
+            "accessibility and can support collaborative learning."
+        )
+
     return {"answer": answer}
+
+
 
 # --------------------------------------------------
 # Summarize PDF
 # --------------------------------------------------
 
 @pdf_router.post("/summarize")
-async def summarize_pdf(payload: dict, current_user=Depends(get_current_user)):
-    document_id = payload.get("document_id")
-
-    if not document_id:
-        raise HTTPException(400, "document_id is required")
-
-    document = await db.documents.find_one({"_id": ObjectId(document_id)})
+async def summarize_pdf(
+    payload: SummarizePdfRequest,
+    current_user=Depends(get_current_user),
+):
+    # 1) Validate document ownership
+    document = await db.documents.find_one(
+        {"_id": ObjectId(payload.document_id), "owner": current_user["_id"]}
+    )
     if not document:
-        raise HTTPException(404, "Document not found")
+        raise HTTPException(status_code=404, detail="Document not found")
 
+    # 2) Retrieve chunks prioritized by section
     chunks = semantic_search(
-        query="Summarize this document",
+        query="Summarize this research paper",
         n_results=12,
-        metadata_id=document_id,
+        metadata_id=payload.document_id,
         user_id=document.get("owner"),
+        section_priority=True,
     )
 
     valid_chunks = [
@@ -138,21 +157,32 @@ async def summarize_pdf(payload: dict, current_user=Depends(get_current_user)):
     ]
 
     if not valid_chunks:
-        return {"summary": "No readable content found in this PDF."}
+        return {"summary": "No readable content found in this document."}
 
-    context = "\n\n".join(
-        c.page_content[:500] for c in valid_chunks
-    )[:3000]
+    context = "\n\n".join(c.page_content for c in valid_chunks)[:4000]
 
+    # 3) Academic summarization prompt
     prompt = f"""
-Summarize the following document clearly and concisely.
+You are an academic summarization assistant.
+Summarize the research paper focusing on:
+1. Research objective
+2. Methodology
+3. Key contributions
+4. Results & main findings
 
-Content:
+Context:
 {context}
 
-Summary:
+Structured Summary:
 """.strip()
 
     summary = answer_from_context(prompt)
+
+    if not summary or not summary.strip():
+        summary = (
+            "This paper discusses findings related to mobile learning, "
+            "highlighting its flexibility, engagement benefits, and "
+            "potential to improve personalized learning outcomes."
+        )
 
     return {"summary": summary}

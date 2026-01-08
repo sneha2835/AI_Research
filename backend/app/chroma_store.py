@@ -97,14 +97,26 @@ def add_chunks_to_chroma(chunks, doc_id: str, user_id=None):
     texts, metadatas, ids = [], [], []
 
     for i, c in enumerate(chunks):
-        if not c.page_content or not c.page_content.strip():
+
+        # ✅ Robust handling: Document OR dict
+        if isinstance(c, dict):
+            content = c.get("page_content")
+            metadata = c.get("metadata", {})
+        else:
+            content = getattr(c, "page_content", None)
+            metadata = getattr(c, "metadata", {})
+
+        if not content or not str(content).strip():
             continue
 
-        texts.append(c.page_content)
+        texts.append(content)
+
         metadatas.append({
             "metadata_id": str(doc_id),
             "user_id": str(user_id) if user_id else None,
+            "section": metadata.get("section"),
         })
+
         ids.append(f"{doc_id}_{i}")
 
     if texts:
@@ -114,27 +126,47 @@ def add_chunks_to_chroma(chunks, doc_id: str, user_id=None):
             ids=ids,
         )
 
-def semantic_search(query, n_results=5, metadata_id=None, user_id=None):
-    filters = []
+def semantic_search(
+    query,
+    n_results=5,
+    metadata_id=None,
+    user_id=None,
+    section_priority=False,
+):
+    """
+    Retrieve relevant chunks.
+    Prioritize abstract + introduction when section_priority=True.
+    """
+    base_filters = []
 
     if metadata_id:
-        filters.append({"metadata_id": str(metadata_id)})
-
+        base_filters.append({"metadata_id": str(metadata_id)})
     if user_id:
-        filters.append({"user_id": str(user_id)})
+        base_filters.append({"user_id": str(user_id)})
 
-    chroma_filter = None
+    # If we're prioritizing, first search abstract + intro
+    if section_priority:
+        prioritized_filter = {"$and": base_filters + [
+            {"section": {"$in": ["abstract", "introduction"]}}
+        ]}
 
-    if len(filters) == 1:
-        chroma_filter = filters[0]
-    elif len(filters) > 1:
-        chroma_filter = {"$and": filters}
+        prioritized_results = pdf_vector_store.similarity_search_with_score(
+            query=query,
+            k=n_results,
+            filter=prioritized_filter,
+        )
+
+        # If enough results from abstract/intro, return them
+        if len(prioritized_results) >= n_results:
+            return [doc for doc, _score in prioritized_results]
+
+    # Otherwise (or if not enough prioritized results), do a broad search
+    combined_filter = {"$and": base_filters} if base_filters else None
 
     results = pdf_vector_store.similarity_search_with_score(
         query=query,
-        k=min(n_results, 20),
-        filter=chroma_filter,
+        k=n_results,
+        filter=combined_filter,
     )
 
-    # similarity_search_with_score returns (Document, score)
     return [doc for doc, _score in results]
