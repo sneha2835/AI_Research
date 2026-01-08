@@ -39,7 +39,9 @@ async def upload_pdf(file: UploadFile = File(...), current_user=Depends(get_curr
     if count >= 3:
         raise HTTPException(403, "Upload limit reached")
 
-    filename = f"{uuid.uuid4().hex}_{file.filename}"
+    safe = "".join(c for c in file.filename if c.isalnum() or c in "._-")
+    filename = f"{uuid.uuid4().hex}_{safe}"
+
     path = os.path.join(UPLOAD_DIR, filename)
 
     data = await file.read()

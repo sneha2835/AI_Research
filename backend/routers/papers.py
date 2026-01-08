@@ -75,7 +75,7 @@ async def analyze_paper(paper_id: str, current_user=Depends(get_current_user)):
         return {"metadata_id": str(existing["_id"]), "cached": True}
 
     async with aiohttp.ClientSession() as session:
-        async with session.get(paper["pdf_url"]) as resp:
+        async with session.get(paper["pdf_url"], timeout=aiohttp.ClientTimeout(total=30)) as resp:
             if resp.status != 200:
                 raise HTTPException(500, "PDF download failed")
             data = await resp.read()
