@@ -25,3 +25,18 @@ async def create_indexes():
     await db.chat_history.create_index(
         [("metadata_id", 1), ("user_id", 1), ("timestamp", 1)]
     )
+    # Research papers (arXiv)
+    await db.research_papers.create_index(
+        "pdf_url",
+        unique=True
+    )
+
+    await db.research_papers.create_index(
+        [("published", -1)]
+    )
+
+    # Recently viewed papers
+    await db.recent_views.create_index(
+        [("user_id", 1), ("viewed_at", -1)]
+    )
+

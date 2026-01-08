@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import logging
-
+from backend.routers import papers
 from backend.routers import auth, users, pdf_chunking
 from backend.app.db import check_mongo_connection, create_indexes
 
@@ -17,6 +17,7 @@ app = FastAPI(
 app.include_router(auth.auth_router)
 app.include_router(users.users_router)
 app.include_router(pdf_chunking.pdf_router)
+app.include_router(papers.papers_router)
 
 app.add_middleware(
     CORSMiddleware,
