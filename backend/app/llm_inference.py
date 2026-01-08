@@ -2,17 +2,15 @@
 
 import threading
 from transformers import pipeline
+from backend.app.config import settings
 
-# ---------------- GLOBALS ----------------
 _lock = threading.Lock()
 _text2text = None
 
-MODEL_NAME = "google/flan-t5-base"
-
 
 def _load_model():
-    """Lazy-load model once (CPU, deterministic)."""
     global _text2text
+
     if _text2text is not None:
         return
 
@@ -22,62 +20,37 @@ def _load_model():
 
         _text2text = pipeline(
             "text2text-generation",
-            model=MODEL_NAME,
-            tokenizer=MODEL_NAME,
+            model=settings.HF_MODEL,
+            tokenizer=settings.HF_MODEL,
             device=-1,
-            max_new_tokens=150,
+            max_new_tokens=200,
             do_sample=False,
-            repetition_penalty=1.3,     # ⭐ IMPORTANT
-            num_beams=4                 # ⭐ IMPORTANT
-)
+            repetition_penalty=1.3,
+            num_beams=4,
+        )
 
 
-# ---------------- QA ----------------
 def answer_from_context(prompt: str) -> str:
     _load_model()
 
     if not prompt.strip():
         return "No prompt provided."
 
-    result = _text2text(
-        prompt,
-        max_new_tokens=200,
-        truncation=True,
-    )
+    result = _text2text(prompt, truncation=True)
 
-    if not result or "generated_text" not in result[0]:
-        return "The model did not return an answer."
+    if not result:
+        return "No answer generated."
 
-    answer = result[0]["generated_text"].strip()
-
-    if not answer:
-        return "The model could not generate an answer."
-
-    return answer
+    return result[0]["generated_text"].strip()
 
 
-# ---------------- SUMMARY ----------------
 def summarize_text(text: str) -> str:
     _load_model()
 
     if not text.strip():
         return "No text provided."
 
-    prompt = f"""
-Summarize the following text clearly and concisely:
+    prompt = f"Summarize the following text:\n\n{text}\n\nSummary:"
+    result = _text2text(prompt, truncation=True)
 
-{text}
-
-Summary:
-""".strip()
-
-    result = _text2text(
-        prompt,
-        max_new_tokens=200,
-        truncation=True,
-    )
-
-    if not result:
-        return "Summary could not be generated."
-
-    return result[0]["generated_text"].strip()
+    return result[0]["generated_text"].strip() if result else "Summary failed."
