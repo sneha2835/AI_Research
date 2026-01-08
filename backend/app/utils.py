@@ -41,5 +41,7 @@ class UserRead(BaseModel):
     name: str
     email: EmailStr
 
-    class Config:
-        allow_population_by_field_name = True
+    model_config = {
+        "validate_by_name": True
+    }
+
