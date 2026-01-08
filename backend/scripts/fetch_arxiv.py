@@ -1,91 +1,71 @@
-# backend/scripts/fetch_arxiv.py
+# backend/scripts/reindex_research_papers.py
 
-import arxiv
 import re
-from datetime import datetime
 from pymongo import MongoClient
 
 from backend.app.config import settings
-from backend.app.chroma_store import add_research_abstracts
-
-MAX_PAPERS = 150
-
-CATEGORIES = [
-    "cs.AI",
-    "cs.CL",
-    "cs.LG",
-    "stat.ML",
-    "cs.CV",
-    "cs.IR",
-]
-
-mongo = MongoClient(settings.MONGO_URL)
-db = mongo[settings.DB_NAME]
+from backend.app.chroma_store import (
+    add_research_abstracts,
+    research_vector_store,
+)
 
 
 def clean_abstract(text: str) -> str:
-    text = re.sub(r"\s+", " ", text)
-    text = text.replace("\n", " ")
-    return text.strip()
+    return re.sub(r"\s+", " ", text).strip()
 
 
-def fetch_arxiv_papers():
-    query = " OR ".join(f"cat:{c}" for c in CATEGORIES)
-    search = arxiv.Search(
-        query=query,
-        max_results=MAX_PAPERS,
-        sort_by=arxiv.SortCriterion.SubmittedDate,
-    )
-    return search.results()
+def clear_chroma_collection():
+    """
+    Safely delete ALL embeddings from the Chroma collection.
+    """
+    collection = research_vector_store._collection
+
+    result = collection.get(include=[])
+    ids = result.get("ids", [])
+
+    if not ids:
+        print("ℹ️ Chroma collection already empty")
+        return
+
+    collection.delete(ids=ids)
+    print(f"🧹 Deleted {len(ids)} embeddings from Chroma")
 
 
 def main():
-    print("🔍 Fetching arXiv papers...")
+    print("🔁 Re-indexing research papers into Chroma...")
+
+    mongo = MongoClient(settings.MONGO_URL)
+    db = mongo[settings.DB_NAME]
+
+    papers = list(db.research_papers.find({}, {"abstract": 1}))
+
+    if not papers:
+        print("❌ No papers found")
+        return
+
+    print("🧹 Clearing existing Chroma index...")
+    clear_chroma_collection()
 
     abstracts, metadatas, ids = [], [], []
-    inserted, skipped = 0, 0
 
-    for paper in fetch_arxiv_papers():
-        if inserted >= MAX_PAPERS:
-            break
-
-        if db.research_papers.find_one({"pdf_url": paper.pdf_url}):
-            skipped += 1
+    for p in papers:
+        if not p.get("abstract"):
             continue
 
-        abstract = clean_abstract(paper.summary)
-        if not abstract:
-            continue
-
-        doc = {
-            "title": paper.title.strip(),
-            "abstract": abstract,
-            "categories": paper.categories,
-            "published": paper.published,
-            "pdf_url": paper.pdf_url,
-            "source": "arxiv",
-            "created_at": datetime.utcnow(),
-        }
-
-        result = db.research_papers.insert_one(doc)
-        pid = str(result.inserted_id)
+        abstract = clean_abstract(p["abstract"])
+        pid = str(p["_id"])
 
         abstracts.append(abstract)
         metadatas.append({
             "paper_id": pid,
             "source": "arxiv",
-            "user_id": None,
         })
         ids.append(pid)
 
-        inserted += 1
+    print(f"📐 Indexing {len(abstracts)} abstracts...")
+    add_research_abstracts(abstracts, metadatas, ids)
 
-    if abstracts:
-        add_research_abstracts(abstracts, metadatas, ids)
-
-    print("\n✅ Ingestion complete")
-    print(f"Inserted: {inserted}")
-    print(f"Skipped: {skipped}")
+    print("✅ Re-indexing complete")
 
 
 if __name__ == "__main__":

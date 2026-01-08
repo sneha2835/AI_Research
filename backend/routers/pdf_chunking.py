@@ -3,15 +3,13 @@
 import os
 import uuid
 import aiofiles
-from datetime import datetime
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
-from bson import ObjectId
 from pydantic import BaseModel
 
 from backend.app.auth import get_current_user
 from backend.app.db import db
 from backend.app.chroma_store import semantic_search
-from backend.app.llm_inference import answer_from_context
+from backend.app.llm_inference import answer_from_context, summarize_text
 from backend.services.document_service import create_uploaded_document
 from backend.services.pdf_service import extract_and_index_pdf
 
@@ -20,12 +18,21 @@ pdf_router = APIRouter(prefix="/pdf", tags=["PDF"])
 UPLOAD_DIR = "backend/pdf_uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+# -------------------------
+# Request Models
+# -------------------------
 
 class AskRequest(BaseModel):
     document_id: str
     query: str
     n_results: int = 5
 
+class SummarizeRequest(BaseModel):
+    document_id: str
+
+# -------------------------
+# Upload
+# -------------------------
 
 @pdf_router.post("/upload")
 async def upload_pdf(
@@ -42,9 +49,8 @@ async def upload_pdf(
     filename = f"{uuid.uuid4().hex}_{file.filename}"
     path = os.path.join(UPLOAD_DIR, filename)
 
-    data = await file.read()
     async with aiofiles.open(path, "wb") as f:
-        await f.write(data)
+        await f.write(await file.read())
 
     document = await create_uploaded_document(
         filename=file.filename,
@@ -54,8 +60,11 @@ async def upload_pdf(
 
     await extract_and_index_pdf(document)
 
-    return {"document_id": str(document["_id"])}
+    return {"document_id": str(document["_id"]), "status": "uploaded"}
 
+# -------------------------
+# Ask (Q&A)
+# -------------------------
 
 @pdf_router.post("/ask")
 async def ask_pdf(
@@ -67,6 +76,9 @@ async def ask_pdf(
         n_results=max(payload.n_results, 8),
         metadata_id=payload.document_id,
     )
+
+    if not chunks:
+        return {"answer": "No relevant information found."}
 
     context = "\n\n".join(c.page_content for c in chunks)[:3500]
 
@@ -83,3 +95,25 @@ Answer:
 """.strip()
 
     return {"answer": answer_from_context(prompt)}
+
+# -------------------------
+# Summarize
+# -------------------------
+
+@pdf_router.post("/summarize")
+async def summarize_pdf(
+    payload: SummarizeRequest,
+    current_user=Depends(get_current_user),
+):
+    chunks = semantic_search(
+        query="summarize",
+        n_results=50,
+        metadata_id=payload.document_id,
+    )
+
+    if not chunks:
+        return {"summary": "No content found."}
+
+    text = "\n\n".join(c.page_content for c in chunks)[:4000]
+
+    return {"summary": summarize_text(text)}

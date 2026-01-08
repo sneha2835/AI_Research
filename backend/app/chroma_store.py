@@ -3,7 +3,6 @@
 from dotenv import load_dotenv
 load_dotenv()
 
-import os
 import chromadb
 from sentence_transformers import SentenceTransformer
 from langchain_chroma import Chroma
@@ -17,7 +16,7 @@ PERSIST_DIR = settings.CHROMA_PERSIST_DIR
 EMBED_MODEL_NAME = settings.SENTENCE_EMBED_MODEL
 
 # --------------------------------------------------
-# Embedding model (BGE)
+# Embedding model
 # --------------------------------------------------
 
 _embedding_model = SentenceTransformer(EMBED_MODEL_NAME)
@@ -41,7 +40,7 @@ class SentenceTransformerEmbedder:
 _embedder = SentenceTransformerEmbedder(_embedding_model)
 
 # --------------------------------------------------
-# Chroma client (lazy init)
+# Chroma client
 # --------------------------------------------------
 
 _client = None
@@ -68,7 +67,7 @@ pdf_vector_store = Chroma(
     persist_directory=PERSIST_DIR,
 )
 
-def add_chunks_to_chroma(chunks, doc_id: str, user_id: str):
+def add_chunks_to_chroma(chunks, doc_id: str, user_id=None):
     if not settings.ENABLE_CHROMA or not chunks:
         return
 
@@ -78,18 +77,16 @@ def add_chunks_to_chroma(chunks, doc_id: str, user_id: str):
         texts.append(c.page_content)
         metadatas.append({
             "metadata_id": doc_id,
-            "user_id": str(user_id),
+            "user_id": str(user_id) if user_id else None,
             "page": c.metadata.get("page", -1),
         })
         ids.append(f"{doc_id}_{i}")
 
-    pdf_vector_store.add_texts(texts=texts, metadatas=metadatas, ids=ids)
-
-def delete_pdf_chunks(metadata_id: str):
-    if settings.ENABLE_CHROMA:
-        pdf_vector_store._collection.delete(
-            where={"metadata_id": metadata_id}
-        )
+    pdf_vector_store.add_texts(
+        texts=texts,
+        metadatas=metadatas,
+        ids=ids,
+    )
 
 def semantic_search(query, n_results=5, metadata_id=None, user_id=None):
     where = {}
@@ -99,9 +96,9 @@ def semantic_search(query, n_results=5, metadata_id=None, user_id=None):
         where["user_id"] = str(user_id)
 
     return pdf_vector_store.similarity_search(
-        query,
+        query=query,
         k=n_results,
-        where=where or None,
+        where=where if where else None,
     )
 
 # --------------------------------------------------
@@ -118,6 +115,7 @@ research_vector_store = Chroma(
 def add_research_abstracts(abstracts, metadatas, ids):
     if not settings.ENABLE_CHROMA or not abstracts:
         return
+
     research_vector_store.add_texts(
         texts=abstracts,
         metadatas=metadatas,
@@ -125,6 +123,4 @@ def add_research_abstracts(abstracts, metadatas, ids):
     )
 
 def search_research_papers(query, n_results=5):
-    return research_vector_store.similarity_search(
-        query, k=n_results
-    )
+    return research_vector_store.similarity_search(query, k=n_results)

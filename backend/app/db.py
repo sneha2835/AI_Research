@@ -1,3 +1,16 @@
+# backend/app/db.py
+
+from motor.motor_asyncio import AsyncIOMotorClient
+from backend.app.config import settings
+
+client = AsyncIOMotorClient(settings.MONGO_URL)
+db = client[settings.DB_NAME]
+
+
+async def check_mongo_connection():
+    await client.admin.command("ping")
+
+
 async def create_indexes():
     await db.users.create_index("email", unique=True)
 

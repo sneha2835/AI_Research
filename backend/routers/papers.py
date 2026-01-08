@@ -17,7 +17,6 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 papers_router = APIRouter(prefix="/papers", tags=["Papers"])
 
-
 @papers_router.get("/recent")
 async def get_recent_papers(
     limit: int = Query(10, ge=5, le=20),
@@ -32,7 +31,6 @@ async def get_recent_papers(
 
     return papers
 
-
 @papers_router.get("/search")
 async def search_papers(
     q: str = Query(..., min_length=2),
@@ -41,11 +39,15 @@ async def search_papers(
 ):
     results = search_research_papers(q, limit)
 
-    paper_ids = [
-        ObjectId(r.metadata["paper_id"])
-        for r in results
-        if r.metadata and ObjectId.is_valid(r.metadata.get("paper_id"))
-    ]
+    paper_ids = []
+    for r in results:
+        meta = r.metadata or {}
+        pid = meta.get("paper_id")
+        if pid and ObjectId.is_valid(pid):
+            paper_ids.append(ObjectId(pid))
+
+    if not paper_ids:
+        return []
 
     papers = await db.research_papers.find(
         {"_id": {"$in": paper_ids}}
@@ -55,7 +57,6 @@ async def search_papers(
         p["_id"] = str(p["_id"])
 
     return papers
-
 
 @papers_router.post("/analyze/{paper_id}")
 async def analyze_arxiv_paper(
