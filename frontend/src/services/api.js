@@ -40,12 +40,15 @@ export const pdfAPI = {
   extractChunks: (metadataId) => api.get(`/pdf/extract_chunks/${metadataId}`),
   search: (query, nResults = 5) => 
     api.get('/pdf/search', { params: { query, n_results: nResults } }),
-  ask: (query, nResults = 5) => 
-    api.post('/pdf/ask', { query, conversation_history: '', n_results: nResults }),
+  ask: (payload) => api.post('/pdf/ask', payload),
   askWithHistory: (metadata_id, query, conversationHistory = '', nResults = 5) =>
-    api.post('/pdf/ask', { metadata_id, query, conversation_history: conversationHistory, n_results: nResults }),
-  chat: (question, nResults = 5) =>
-    api.post('/pdf/chat', { question }, { params: { n_results: nResults } }),
+    api.post('/pdf/ask', { 
+      metadata_id, 
+      query, 
+      conversation_history: conversationHistory, 
+      n_results: nResults 
+    }),
+  summarize: (text) => api.post('/pdf/summarize', { text }),
   deletePDF: (metadataId) => api.delete(`/pdf/delete/${metadataId}`),
   
   // Chat history APIs
@@ -53,6 +56,20 @@ export const pdfAPI = {
     api.post('/pdf/chat/save', { metadata_id, role, content }),
   getChatHistory: (metadataId) => api.get(`/pdf/chat/history/${metadataId}`),
   clearChatHistory: (metadataId) => api.delete(`/pdf/chat/history/${metadataId}`),
+};
+
+// Papers/arXiv APIs
+export const papersAPI = {
+  getRecent: (limit = 10) => api.get('/papers/recent', { params: { limit } }),
+  getPaperDetails: (paperId) => api.get(`/papers/${paperId}`),
+  search: (query, limit = 5) => 
+    api.get('/papers/search', { params: { q: query, limit } }),
+  trackView: (paperId) => api.post(`/papers/view/${paperId}`),
+  processArxiv: (paperId) => api.post(`/papers/process/${paperId}`),
+  getRecentlyViewed: (limit = 10) => 
+    api.get('/papers/recently-viewed', { params: { limit } }),
+  testChroma: (query = 'LLM', limit = 5) =>
+    api.get('/papers/test/chroma', { params: { q: query, limit } }),
 };
 
 export default api;
