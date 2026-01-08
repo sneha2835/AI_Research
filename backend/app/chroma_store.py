@@ -16,7 +16,7 @@ PERSIST_DIR = settings.CHROMA_PERSIST_DIR
 EMBED_MODEL_NAME = settings.SENTENCE_EMBED_MODEL
 
 # --------------------------------------------------
-# Embedding model
+# Embedding model (SAME for docs + queries)
 # --------------------------------------------------
 
 _embedding_model = SentenceTransformer(EMBED_MODEL_NAME)
@@ -28,19 +28,21 @@ class SentenceTransformerEmbedder:
     def embed_documents(self, texts):
         texts = [f"passage: {t}" for t in texts]
         return self.model.encode(
-            texts, normalize_embeddings=True
+            texts,
+            normalize_embeddings=True,
         ).tolist()
 
     def embed_query(self, text):
         text = f"query: {text}"
         return self.model.encode(
-            [text], normalize_embeddings=True
+            [text],
+            normalize_embeddings=True,
         )[0].tolist()
 
 _embedder = SentenceTransformerEmbedder(_embedding_model)
 
 # --------------------------------------------------
-# Chroma client
+# Chroma client (singleton)
 # --------------------------------------------------
 
 _client = None
@@ -57,7 +59,7 @@ def get_chroma_client():
     return _client
 
 # --------------------------------------------------
-# PDF CHUNKS COLLECTION
+# PDF chunks collection
 # --------------------------------------------------
 
 pdf_vector_store = Chroma(
@@ -65,6 +67,7 @@ pdf_vector_store = Chroma(
     client=get_chroma_client(),
     embedding_function=_embedder,
     persist_directory=PERSIST_DIR,
+    create_collection_if_not_exists=True,
 )
 
 def add_chunks_to_chroma(chunks, doc_id: str, user_id=None):
@@ -74,19 +77,22 @@ def add_chunks_to_chroma(chunks, doc_id: str, user_id=None):
     texts, metadatas, ids = [], [], []
 
     for i, c in enumerate(chunks):
+        if not c.page_content:
+            continue
+
         texts.append(c.page_content)
         metadatas.append({
-            "metadata_id": doc_id,
+            "metadata_id": doc_id,                 # REQUIRED
             "user_id": str(user_id) if user_id else None,
-            "page": c.metadata.get("page", -1),
         })
         ids.append(f"{doc_id}_{i}")
 
-    pdf_vector_store.add_texts(
-        texts=texts,
-        metadatas=metadatas,
-        ids=ids,
-    )
+    if texts:
+        pdf_vector_store.add_texts(
+            texts=texts,
+            metadatas=metadatas,
+            ids=ids,
+        )
 
 def semantic_search(query, n_results=5, metadata_id=None, user_id=None):
     where = {}
@@ -97,12 +103,12 @@ def semantic_search(query, n_results=5, metadata_id=None, user_id=None):
 
     return pdf_vector_store.similarity_search(
         query=query,
-        k=n_results,
+        k=min(n_results, 20),   # 🔥 prevents Chroma empty-return bug
         where=where if where else None,
     )
 
 # --------------------------------------------------
-# RESEARCH PAPERS COLLECTION
+# Research papers (arXiv abstracts)
 # --------------------------------------------------
 
 research_vector_store = Chroma(
@@ -110,6 +116,7 @@ research_vector_store = Chroma(
     client=get_chroma_client(),
     embedding_function=_embedder,
     persist_directory=PERSIST_DIR,
+    create_collection_if_not_exists=True,
 )
 
 def add_research_abstracts(abstracts, metadatas, ids):
@@ -123,4 +130,7 @@ def add_research_abstracts(abstracts, metadatas, ids):
     )
 
 def search_research_papers(query, n_results=5):
-    return research_vector_store.similarity_search(query, k=n_results)
+    return research_vector_store.similarity_search(
+        query=query,
+        k=min(n_results, 15),
+    )

@@ -3,6 +3,7 @@
 import os
 import uuid
 import aiofiles
+from bson import ObjectId
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
 from pydantic import BaseModel
 
@@ -19,7 +20,7 @@ UPLOAD_DIR = "backend/pdf_uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # -------------------------
-# Request Models
+# Models
 # -------------------------
 
 class AskRequest(BaseModel):
@@ -71,16 +72,32 @@ async def ask_pdf(
     payload: AskRequest,
     current_user=Depends(get_current_user),
 ):
+    document = await db.documents.find_one({
+        "_id": ObjectId(payload.document_id)
+    })
+    if not document:
+        raise HTTPException(404, "Document not found")
+
     chunks = semantic_search(
         query=payload.query,
         n_results=max(payload.n_results, 8),
         metadata_id=payload.document_id,
+        user_id=document.get("owner"),
     )
 
     if not chunks:
         return {"answer": "No relevant information found."}
 
-    context = "\n\n".join(c.page_content for c in chunks)[:3500]
+    valid_chunks = [
+        c for c in chunks if getattr(c, "page_content", None)
+    ]
+
+    if not valid_chunks:
+        return {"answer": "No readable content found."}
+
+    context = "\n\n".join(
+        c.page_content for c in valid_chunks
+    )[:3500]
 
     prompt = f"""
 Answer ONLY using the context below.
@@ -106,7 +123,7 @@ async def summarize_pdf(
     current_user=Depends(get_current_user),
 ):
     chunks = semantic_search(
-        query="summarize",
+        query="summary",
         n_results=50,
         metadata_id=payload.document_id,
     )
@@ -114,6 +131,15 @@ async def summarize_pdf(
     if not chunks:
         return {"summary": "No content found."}
 
-    text = "\n\n".join(c.page_content for c in chunks)[:4000]
+    valid_chunks = [
+        c for c in chunks if getattr(c, "page_content", None)
+    ]
+
+    if not valid_chunks:
+        return {"summary": "No readable content found."}
+
+    text = "\n\n".join(
+        c.page_content for c in valid_chunks
+    )[:4000]
 
     return {"summary": summarize_text(text)}
