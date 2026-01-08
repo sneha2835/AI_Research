@@ -2,8 +2,12 @@
 
 import re
 from pymongo import MongoClient
+
 from backend.app.config import settings
-from backend.app.chroma_store import add_research_abstracts, research_vector_store
+from backend.app.chroma_store import (
+    add_research_abstracts,
+    research_vector_store,
+)
 
 
 def clean_abstract(text: str) -> str:
@@ -23,9 +27,9 @@ def main():
         print("❌ No papers found")
         return
 
-    # 🚨 Clear collection first (true reindex)
+    # ✅ CORRECT way to clear Chroma collection
     print("🧹 Clearing existing Chroma index...")
-    research_vector_store._collection.delete(where={})
+    research_vector_store._collection.delete(ids=None)
 
     abstracts, metadatas, ids = [], [], []
 

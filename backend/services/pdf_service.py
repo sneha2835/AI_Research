@@ -8,19 +8,19 @@ from backend.app.db import db
 from backend.app.chroma_store import add_chunks_to_chroma
 
 
-async def extract_and_index_pdf(file_doc: dict, user_id: str) -> int:
+async def extract_and_index_pdf(document: dict):
     """
-    Extracts text from a PDF, chunks it, embeds it into Chroma,
-    and records chunk metadata in MongoDB.
-
-    Used by:
-    - User PDF uploads
-    - arXiv paper analysis
-
-    Returns number of chunks created.
+    Extracts PDF → chunks → embeddings.
+    Runs ONCE per document.
     """
 
-    loader = PyPDFLoader(file_doc["path"])
+    already_done = await db.chunks.find_one({
+        "document_id": str(document["_id"])
+    })
+    if already_done:
+        return already_done["chunk_count"]
+
+    loader = PyPDFLoader(document["path"])
     docs = loader.load()
 
     splitter = RecursiveCharacterTextSplitter(
@@ -29,18 +29,14 @@ async def extract_and_index_pdf(file_doc: dict, user_id: str) -> int:
     )
     chunks = splitter.split_documents(docs)
 
-    if not chunks:
-        return 0
-
     add_chunks_to_chroma(
         chunks,
-        doc_id=str(file_doc["_id"]),
-        user_id=user_id,
+        doc_id=str(document["_id"]),
+        user_id=None,  # 🔥 GLOBAL
     )
 
     await db.chunks.insert_one({
-        "metadata_id": str(file_doc["_id"]),
-        "user_id": user_id,
+        "document_id": str(document["_id"]),
         "created_at": datetime.utcnow(),
         "chunk_count": len(chunks),
     })

@@ -4,15 +4,15 @@ import os
 import uuid
 import aiofiles
 from datetime import datetime
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
+from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
 from bson import ObjectId
-from PyPDF2 import PdfReader
 from pydantic import BaseModel
 
 from backend.app.auth import get_current_user
 from backend.app.db import db
-from backend.app.chroma_store import semantic_search, delete_pdf_chunks
+from backend.app.chroma_store import semantic_search
 from backend.app.llm_inference import answer_from_context
+from backend.services.document_service import create_uploaded_document
 from backend.services.pdf_service import extract_and_index_pdf
 
 pdf_router = APIRouter(prefix="/pdf", tags=["PDF"])
@@ -22,16 +22,9 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
 class AskRequest(BaseModel):
-    metadata_id: str
+    document_id: str
     query: str
     n_results: int = 5
-
-
-class ChatMessage(BaseModel):
-    metadata_id: str
-    role: str
-    content: str
-    source: str
 
 
 @pdf_router.post("/upload")
@@ -39,72 +32,46 @@ async def upload_pdf(
     file: UploadFile = File(...),
     current_user=Depends(get_current_user),
 ):
-    count = await db.pdf_files.count_documents({"user_id": current_user["_id"]})
+    count = await db.documents.count_documents({
+        "owner": current_user["_id"],
+        "source": "upload",
+    })
     if count >= 3:
         raise HTTPException(403, "Upload limit reached")
 
-    safe = "".join(c for c in file.filename if c.isalnum() or c in "._-")
-    filename = f"{uuid.uuid4().hex}_{safe}"
+    filename = f"{uuid.uuid4().hex}_{file.filename}"
     path = os.path.join(UPLOAD_DIR, filename)
 
     data = await file.read()
     async with aiofiles.open(path, "wb") as f:
         await f.write(data)
 
-    reader = PdfReader(path)
-
-    file_doc = {
-        "user_id": current_user["_id"],
-        "filename": file.filename,
-        "path": path,
-        "page_count": len(reader.pages),
-        "source": "upload",
-        "uploaded_at": datetime.utcnow(),
-    }
-
-    result = await db.pdf_files.insert_one(file_doc)
-    file_doc["_id"] = result.inserted_id
-
-    await extract_and_index_pdf(
-        file_doc=file_doc,
+    document = await create_uploaded_document(
+        filename=file.filename,
+        path=path,
         user_id=current_user["_id"],
     )
 
-    return {"metadata_id": str(result.inserted_id)}
+    await extract_and_index_pdf(document)
 
-
-@pdf_router.delete("/delete/{metadata_id}")
-async def delete_pdf(metadata_id: str, current_user=Depends(get_current_user)):
-    doc = await db.pdf_files.find_one(
-        {"_id": ObjectId(metadata_id), "user_id": current_user["_id"]}
-    )
-    if not doc:
-        raise HTTPException(404, "File not found")
-
-    delete_pdf_chunks(metadata_id)
-    await db.chunks.delete_many({"metadata_id": metadata_id})
-    os.remove(doc["path"])
-    await db.pdf_files.delete_one({"_id": ObjectId(metadata_id)})
-
-    return {"status": "deleted"}
+    return {"document_id": str(document["_id"])}
 
 
 @pdf_router.post("/ask")
-async def ask_pdf(payload: AskRequest, current_user=Depends(get_current_user)):
+async def ask_pdf(
+    payload: AskRequest,
+    current_user=Depends(get_current_user),
+):
     chunks = semantic_search(
         query=payload.query,
         n_results=max(payload.n_results, 8),
-        metadata_id=payload.metadata_id,
-        user_id=current_user["_id"],
+        metadata_id=payload.document_id,
     )
-
-    if not chunks:
-        return {"answer": "No relevant information found."}
 
     context = "\n\n".join(c.page_content for c in chunks)[:3500]
 
     prompt = f"""
-Answer ONLY from the context below.
+Answer ONLY using the context below.
 
 Context:
 {context}
@@ -116,16 +83,3 @@ Answer:
 """.strip()
 
     return {"answer": answer_from_context(prompt)}
-
-
-@pdf_router.post("/chat/save")
-async def save_chat(msg: ChatMessage, current_user=Depends(get_current_user)):
-    await db.chat_history.insert_one({
-        "metadata_id": msg.metadata_id,
-        "user_id": current_user["_id"],
-        "role": msg.role,
-        "content": msg.content,
-        "source": msg.source,
-        "timestamp": datetime.utcnow(),
-    })
-    return {"status": "saved"}
