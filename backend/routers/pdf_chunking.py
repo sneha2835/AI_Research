@@ -1,103 +1,99 @@
 # backend/routers/pdf_chunking.py
 
-import os
-import uuid
-import aiofiles
+from datetime import datetime
 from bson import ObjectId
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
-from pydantic import BaseModel
-
-from backend.app.auth import get_current_user
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from backend.app.db import db
+from backend.app.auth import get_current_user
 from backend.app.chroma_store import semantic_search
-from backend.app.llm_inference import answer_from_context, summarize_text
-from backend.services.document_service import create_uploaded_document
 from backend.services.pdf_service import extract_and_index_pdf
+from backend.services.llm_service import answer_from_context
+import os
+from typing import List
+from fastapi import UploadFile, File
 
 pdf_router = APIRouter(prefix="/pdf", tags=["PDF"])
 
 UPLOAD_DIR = "backend/pdf_uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# -------------------------
-# Models
-# -------------------------
-
-class AskRequest(BaseModel):
-    document_id: str
-    query: str
-    n_results: int = 5
-
-class SummarizeRequest(BaseModel):
-    document_id: str
-
-# -------------------------
-# Upload
-# -------------------------
+# --------------------------------------------------
+# Upload PDF
+# --------------------------------------------------
 
 @pdf_router.post("/upload")
 async def upload_pdf(
     file: UploadFile = File(...),
     current_user=Depends(get_current_user),
 ):
-    count = await db.documents.count_documents({
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(400, "Only PDF files are allowed")
+
+    document = {
         "owner": current_user["_id"],
-        "source": "upload",
-    })
-    if count >= 3:
-        raise HTTPException(403, "Upload limit reached")
+        "title": file.filename,
+        "created_at": datetime.utcnow(),
+        "path": None,
+    }
 
-    filename = f"{uuid.uuid4().hex}_{file.filename}"
-    path = os.path.join(UPLOAD_DIR, filename)
+    result = await db.documents.insert_one(document)
+    document["_id"] = result.inserted_id
 
-    async with aiofiles.open(path, "wb") as f:
-        await f.write(await file.read())
+    path = os.path.join(UPLOAD_DIR, f"{document['_id']}.pdf")
 
-    document = await create_uploaded_document(
-        filename=file.filename,
-        path=path,
-        user_id=current_user["_id"],
+    with open(path, "wb") as f:
+        f.write(await file.read())
+
+    await db.documents.update_one(
+        {"_id": document["_id"]},
+        {"$set": {"path": path}},
     )
 
-    await extract_and_index_pdf(document)
+    await extract_and_index_pdf({
+        "_id": document["_id"],
+        "path": path,
+        "owner": current_user["_id"],
+    })
 
-    return {"document_id": str(document["_id"]), "status": "uploaded"}
+    return {
+        "document_id": str(document["_id"]),
+        "status": "uploaded",
+    }
 
-# -------------------------
-# Ask (Q&A)
-# -------------------------
+# --------------------------------------------------
+# Ask PDF
+# --------------------------------------------------
 
 @pdf_router.post("/ask")
-async def ask_pdf(
-    payload: AskRequest,
-    current_user=Depends(get_current_user),
-):
-    document = await db.documents.find_one({
-        "_id": ObjectId(payload.document_id)
-    })
+async def ask_pdf(payload: dict, current_user=Depends(get_current_user)):
+    document_id = payload.get("document_id")
+    query = payload.get("query")
+    n_results = payload.get("n_results", 5)
+
+    if not document_id or not query:
+        raise HTTPException(400, "document_id and query are required")
+
+    document = await db.documents.find_one({"_id": ObjectId(document_id)})
     if not document:
         raise HTTPException(404, "Document not found")
 
     chunks = semantic_search(
-        query=payload.query,
-        n_results=max(payload.n_results, 8),
-        metadata_id=payload.document_id,
+        query=query,
+        n_results=max(n_results, 8),
+        metadata_id=document_id,
         user_id=document.get("owner"),
     )
 
-    if not chunks:
-        return {"answer": "No relevant information found."}
-
     valid_chunks = [
-        c for c in chunks if getattr(c, "page_content", None)
+        c for c in chunks if getattr(c, "page_content", "").strip()
     ]
 
     if not valid_chunks:
-        return {"answer": "No readable content found."}
+        return {"answer": "No readable content found in this PDF."}
 
     context = "\n\n".join(
-        c.page_content for c in valid_chunks
-    )[:3500]
+        c.page_content[:500] for c in valid_chunks
+    )[:3000]
 
     prompt = f"""
 Answer ONLY using the context below.
@@ -106,40 +102,57 @@ Context:
 {context}
 
 Question:
-{payload.query}
+{query}
 
 Answer:
 """.strip()
 
-    return {"answer": answer_from_context(prompt)}
+    answer = answer_from_context(prompt)
 
-# -------------------------
-# Summarize
-# -------------------------
+    return {"answer": answer}
+
+# --------------------------------------------------
+# Summarize PDF
+# --------------------------------------------------
 
 @pdf_router.post("/summarize")
-async def summarize_pdf(
-    payload: SummarizeRequest,
-    current_user=Depends(get_current_user),
-):
+async def summarize_pdf(payload: dict, current_user=Depends(get_current_user)):
+    document_id = payload.get("document_id")
+
+    if not document_id:
+        raise HTTPException(400, "document_id is required")
+
+    document = await db.documents.find_one({"_id": ObjectId(document_id)})
+    if not document:
+        raise HTTPException(404, "Document not found")
+
     chunks = semantic_search(
-        query="summary",
-        n_results=50,
-        metadata_id=payload.document_id,
+        query="Summarize this document",
+        n_results=12,
+        metadata_id=document_id,
+        user_id=document.get("owner"),
     )
 
-    if not chunks:
-        return {"summary": "No content found."}
-
     valid_chunks = [
-        c for c in chunks if getattr(c, "page_content", None)
+        c for c in chunks if getattr(c, "page_content", "").strip()
     ]
 
     if not valid_chunks:
-        return {"summary": "No readable content found."}
+        return {"summary": "No readable content found in this PDF."}
 
-    text = "\n\n".join(
-        c.page_content for c in valid_chunks
-    )[:4000]
+    context = "\n\n".join(
+        c.page_content[:500] for c in valid_chunks
+    )[:3000]
 
-    return {"summary": summarize_text(text)}
+    prompt = f"""
+Summarize the following document clearly and concisely.
+
+Content:
+{context}
+
+Summary:
+""".strip()
+
+    summary = answer_from_context(prompt)
+
+    return {"summary": summary}

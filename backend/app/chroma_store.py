@@ -3,23 +3,26 @@
 from dotenv import load_dotenv
 load_dotenv()
 
+import os
 import chromadb
 from sentence_transformers import SentenceTransformer
 from langchain_chroma import Chroma
 from backend.app.config import settings
 
 # --------------------------------------------------
-# Config
+# Ensure directory exists (force-create)
 # --------------------------------------------------
 
 PERSIST_DIR = settings.CHROMA_PERSIST_DIR
-EMBED_MODEL_NAME = settings.SENTENCE_EMBED_MODEL
+os.makedirs(PERSIST_DIR, exist_ok=True)
+
+print("🔥 Chroma persist directory:", PERSIST_DIR)
 
 # --------------------------------------------------
-# Embedding model (SAME for docs + queries)
+# Embedding model
 # --------------------------------------------------
 
-_embedding_model = SentenceTransformer(EMBED_MODEL_NAME)
+_embedding_model = SentenceTransformer(settings.SENTENCE_EMBED_MODEL)
 
 class SentenceTransformerEmbedder:
     def __init__(self, model):
@@ -30,6 +33,7 @@ class SentenceTransformerEmbedder:
         return self.model.encode(
             texts,
             normalize_embeddings=True,
+            show_progress_bar=False,
         ).tolist()
 
     def embed_query(self, text):
@@ -37,86 +41,27 @@ class SentenceTransformerEmbedder:
         return self.model.encode(
             [text],
             normalize_embeddings=True,
+            show_progress_bar=False,
         )[0].tolist()
 
 _embedder = SentenceTransformerEmbedder(_embedding_model)
 
 # --------------------------------------------------
-# Chroma client (singleton)
+# 🔥 Persistent Chroma client (THIS IS THE FIX)
 # --------------------------------------------------
 
-_client = None
-
-def get_chroma_client():
-    global _client
-    if _client is None:
-        _client = chromadb.Client(
-            settings=chromadb.Settings(
-                persist_directory=PERSIST_DIR,
-                anonymized_telemetry=False,
-            )
-        )
-    return _client
-
-# --------------------------------------------------
-# PDF chunks collection
-# --------------------------------------------------
-
-pdf_vector_store = Chroma(
-    collection_name="pdf_chunks",
-    client=get_chroma_client(),
-    embedding_function=_embedder,
-    persist_directory=PERSIST_DIR,
-    create_collection_if_not_exists=True,
+client = chromadb.PersistentClient(
+    path=PERSIST_DIR,
 )
 
-def add_chunks_to_chroma(chunks, doc_id: str, user_id=None):
-    if not settings.ENABLE_CHROMA or not chunks:
-        return
-
-    texts, metadatas, ids = [], [], []
-
-    for i, c in enumerate(chunks):
-        if not c.page_content:
-            continue
-
-        texts.append(c.page_content)
-        metadatas.append({
-            "metadata_id": doc_id,                 # REQUIRED
-            "user_id": str(user_id) if user_id else None,
-        })
-        ids.append(f"{doc_id}_{i}")
-
-    if texts:
-        pdf_vector_store.add_texts(
-            texts=texts,
-            metadatas=metadatas,
-            ids=ids,
-        )
-
-def semantic_search(query, n_results=5, metadata_id=None, user_id=None):
-    where = {}
-    if metadata_id:
-        where["metadata_id"] = metadata_id
-    if user_id:
-        where["user_id"] = str(user_id)
-
-    return pdf_vector_store.similarity_search(
-        query=query,
-        k=min(n_results, 20),   # 🔥 prevents Chroma empty-return bug
-        where=where if where else None,
-    )
-
 # --------------------------------------------------
-# Research papers (arXiv abstracts)
+# Research papers (arXiv)
 # --------------------------------------------------
 
 research_vector_store = Chroma(
     collection_name="research_papers",
-    client=get_chroma_client(),
+    client=client,
     embedding_function=_embedder,
-    persist_directory=PERSIST_DIR,
-    create_collection_if_not_exists=True,
 )
 
 def add_research_abstracts(abstracts, metadatas, ids):
@@ -134,3 +79,62 @@ def search_research_papers(query, n_results=5):
         query=query,
         k=min(n_results, 15),
     )
+
+# --------------------------------------------------
+# PDF chunks
+# --------------------------------------------------
+
+pdf_vector_store = Chroma(
+    collection_name="pdf_chunks",
+    client=client,
+    embedding_function=_embedder,
+)
+
+def add_chunks_to_chroma(chunks, doc_id: str, user_id=None):
+    if not settings.ENABLE_CHROMA or not chunks:
+        return
+
+    texts, metadatas, ids = [], [], []
+
+    for i, c in enumerate(chunks):
+        if not c.page_content or not c.page_content.strip():
+            continue
+
+        texts.append(c.page_content)
+        metadatas.append({
+            "metadata_id": str(doc_id),
+            "user_id": str(user_id) if user_id else None,
+        })
+        ids.append(f"{doc_id}_{i}")
+
+    if texts:
+        pdf_vector_store.add_texts(
+            texts=texts,
+            metadatas=metadatas,
+            ids=ids,
+        )
+
+def semantic_search(query, n_results=5, metadata_id=None, user_id=None):
+    filters = []
+
+    if metadata_id:
+        filters.append({"metadata_id": str(metadata_id)})
+
+    if user_id:
+        filters.append({"user_id": str(user_id)})
+
+    chroma_filter = None
+
+    if len(filters) == 1:
+        chroma_filter = filters[0]
+    elif len(filters) > 1:
+        chroma_filter = {"$and": filters}
+
+    results = pdf_vector_store.similarity_search_with_score(
+        query=query,
+        k=min(n_results, 20),
+        filter=chroma_filter,
+    )
+
+    # similarity_search_with_score returns (Document, score)
+    return [doc for doc, _score in results]

@@ -1,6 +1,7 @@
 # backend/app/config.py
 
 from pydantic_settings import BaseSettings
+from pydantic import field_validator
 
 
 class Settings(BaseSettings):
@@ -28,11 +29,28 @@ class Settings(BaseSettings):
     # LLM / HuggingFace
     # --------------------
     HF_MODEL: str = "google/flan-t5-base"
-    HF_TOKEN: str | None = None  # optional
+    HF_TOKEN: str | None = None
 
+    # --------------------
+    # ENV config
+    # --------------------
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+        case_sensitive = False
+
+    # --------------------
+    # FORCE BOOLEAN PARSING
+    # --------------------
+    @field_validator("ENABLE_CHROMA", mode="before")
+    @classmethod
+    def parse_enable_chroma(cls, v):
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, str):
+            return v.lower() in {"1", "true", "yes", "on"}
+        return bool(v)
 
 
+# ✅ Singleton settings instance
 settings = Settings()
