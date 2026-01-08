@@ -1,25 +1,23 @@
-from fastapi import FastAPI, Request
+# backend/app/main.py
+
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import logging
-from dotenv import load_dotenv
 
-from backend.routers import pdf_chunking, auth, users
-from backend.app.db import check_mongo_connection
+from backend.routers import auth, users, pdf_chunking
+from backend.app.db import check_mongo_connection, create_indexes
 
-load_dotenv()
+logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(
     title="Research AI Companion",
-    version="1.0.0",
-    description="Backend for PDF-based AI companion with user authentication"
+    version="1.1.0",
 )
 
-# Include routers in logical order
-app.include_router(auth.auth_router)          # Authentication first
-app.include_router(users.users_router)        # Users CRUD second
-app.include_router(pdf_chunking.pdf_router)   # PDF endpoints last
+app.include_router(auth.auth_router)
+app.include_router(users.users_router)
+app.include_router(pdf_chunking.pdf_router)
 
-# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
@@ -29,26 +27,21 @@ app.add_middleware(
 )
 
 
-# Logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+@app.on_event("startup")
+async def startup():
+    await check_mongo_connection()
+    await create_indexes()
 
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    logger.info(f"Incoming request: {request.method} {request.url}")
-    response = await call_next(request)
-    logger.info(f"Response status: {response.status_code}")
-    return response
 
-@app.get("/", summary="Root endpoint")
+@app.get("/")
 async def root():
-    return {"message": "Research AI Companion backend is running!"}
+    return {"status": "running"}
 
-@app.get("/health", summary="Health check")
-async def health_check():
+
+@app.get("/health")
+async def health():
     try:
         await check_mongo_connection()
-        return {"status": "ok", "db": "connected"}
+        return {"status": "ok"}
     except Exception as e:
-        logger.error(f"Health check failed: {str(e)}")
-        return {"status": "degraded", "db": "unreachable", "error": str(e)}
+        return {"status": "degraded", "error": str(e)}
