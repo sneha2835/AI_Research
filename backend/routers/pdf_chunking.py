@@ -7,8 +7,8 @@ from backend.app.db import db
 from backend.app.auth import get_current_user
 from backend.app.chroma_store import semantic_search
 from backend.services.pdf_service import extract_and_index_pdf
-from backend.services.llm_service import answer_from_context
-import os
+from backend.app.llm_inference import answer_from_context, summarize_text
+import os, re
 from typing import List
 from fastapi import UploadFile, File
 from backend.schemas.pdf import AskPdfRequest, SummarizePdfRequest
@@ -68,9 +68,14 @@ async def upload_pdf(
 @pdf_router.post("/ask")
 async def ask_pdf(payload: AskPdfRequest, current_user=Depends(get_current_user)):
     # 1) Validate document
-    document = await db.documents.find_one(
-        {"_id": ObjectId(payload.document_id), "owner": current_user["_id"]}
-    )
+    document = await db.documents.find_one({
+    "_id": ObjectId(payload.document_id),
+    "$or": [
+        {"owner": current_user["_id"]},
+        {"owner": None}
+    ]
+})
+
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
 
@@ -85,8 +90,14 @@ async def ask_pdf(payload: AskPdfRequest, current_user=Depends(get_current_user)
 
     # 3) Filter out empty page_content
     valid_chunks = [
-        c for c in chunks if getattr(c, "page_content", "").strip()
+    c for c in chunks if getattr(c, "page_content", "").strip()
     ]
+    valid_chunks = deduplicate_chunks(valid_chunks, payload.n_results)
+    valid_chunks = [
+        c for c in valid_chunks
+        if not is_junk_chunk(c.page_content)
+    ]
+
 
     # If no chunks found, return clear message
     if not valid_chunks:
@@ -97,9 +108,10 @@ async def ask_pdf(payload: AskPdfRequest, current_user=Depends(get_current_user)
 
     # 5) Academic prompt
     prompt = f"""
-You are an expert academic assistant. Use ONLY the context below.
-If you cannot answer from the context, respond:
-    "Not enough information in the document."
+You are an expert academic assistant.
+Use the context below as your primary source.
+Paraphrase clearly in your own words.
+Do NOT copy citation markers like [1], [2], etc.
 
 Context:
 {context}
@@ -107,24 +119,25 @@ Context:
 Question:
 {payload.query}
 
-Answer (concise, research-oriented):
+Answer (clear, concise, academic):
 """.strip()
+
 
     # 6) Generate answer
     answer = answer_from_context(prompt)
-
-    # 7) Fallback if the model produces nothing
-    if not answer or not answer.strip():
-        answer = (
-            "Mobile learning (m-learning) offers several advantages "
-            "such as flexible access anytime and anywhere, increased "
-            "engagement through interactive content, personalized "
-            "learning pace, and improved retention. It also enhances "
-            "accessibility and can support collaborative learning."
-        )
+    if re.fullmatch(r"\[\d+\]", answer.strip()):
+        answer = ""
 
     return {"answer": answer}
 
+
+def is_junk_chunk(text: str) -> bool:
+    text = text.strip()
+    if len(text) < 30:
+        return True
+    if re.fullmatch(r"\[\d+\]", text):
+        return True
+    return False
 
 
 # --------------------------------------------------
@@ -137,9 +150,14 @@ async def summarize_pdf(
     current_user=Depends(get_current_user),
 ):
     # 1) Validate document ownership
-    document = await db.documents.find_one(
-        {"_id": ObjectId(payload.document_id), "owner": current_user["_id"]}
-    )
+    document = await db.documents.find_one({
+    "_id": ObjectId(payload.document_id),
+    "$or": [
+        {"owner": current_user["_id"]},
+        {"owner": None}
+    ]
+})
+
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
 
@@ -153,8 +171,14 @@ async def summarize_pdf(
     )
 
     valid_chunks = [
-        c for c in chunks if getattr(c, "page_content", "").strip()
+    c for c in chunks if getattr(c, "page_content", "").strip()
     ]
+    valid_chunks = deduplicate_chunks(valid_chunks, 10)
+    valid_chunks = [
+        c for c in valid_chunks
+        if not is_junk_chunk(c.page_content)
+    ]
+
 
     if not valid_chunks:
         return {"summary": "No readable content found in this document."}
@@ -162,21 +186,9 @@ async def summarize_pdf(
     context = "\n\n".join(c.page_content for c in valid_chunks)[:4000]
 
     # 3) Academic summarization prompt
-    prompt = f"""
-You are an academic summarization assistant.
-Summarize the research paper focusing on:
-1. Research objective
-2. Methodology
-3. Key contributions
-4. Results & main findings
 
-Context:
-{context}
+    summary = summarize_text(context)
 
-Structured Summary:
-""".strip()
-
-    summary = answer_from_context(prompt)
 
     if not summary or not summary.strip():
         summary = (
@@ -186,3 +198,17 @@ Structured Summary:
         )
 
     return {"summary": summary}
+
+def deduplicate_chunks(chunks, max_chunks):
+    seen = set()
+    unique = []
+
+    for c in chunks:
+        key = c.page_content.strip()[:200]
+        if key not in seen:
+            seen.add(key)
+            unique.append(c)
+        if len(unique) >= max_chunks:
+            break
+
+    return unique

@@ -133,10 +133,6 @@ def semantic_search(
     user_id=None,
     section_priority=False,
 ):
-    """
-    Retrieve relevant chunks.
-    Prioritize abstract + introduction when section_priority=True.
-    """
     base_filters = []
 
     if metadata_id:
@@ -144,11 +140,18 @@ def semantic_search(
     if user_id:
         base_filters.append({"user_id": str(user_id)})
 
-    # If we're prioritizing, first search abstract + intro
+    # --- PRIORITY SEARCH ---
     if section_priority:
-        prioritized_filter = {"$and": base_filters + [
+        priority_conditions = base_filters + [
             {"section": {"$in": ["abstract", "introduction"]}}
-        ]}
+        ]
+
+        if not priority_conditions:
+            prioritized_filter = None
+        elif len(priority_conditions) == 1:
+            prioritized_filter = priority_conditions[0]
+        else:
+            prioritized_filter = {"$and": priority_conditions}
 
         prioritized_results = pdf_vector_store.similarity_search_with_score(
             query=query,
@@ -156,12 +159,16 @@ def semantic_search(
             filter=prioritized_filter,
         )
 
-        # If enough results from abstract/intro, return them
         if len(prioritized_results) >= n_results:
-            return [doc for doc, _score in prioritized_results]
+            return [doc for doc, _ in prioritized_results]
 
-    # Otherwise (or if not enough prioritized results), do a broad search
-    combined_filter = {"$and": base_filters} if base_filters else None
+    # --- NORMAL SEARCH ---
+    if not base_filters:
+        combined_filter = None
+    elif len(base_filters) == 1:
+        combined_filter = base_filters[0]
+    else:
+        combined_filter = {"$and": base_filters}
 
     results = pdf_vector_store.similarity_search_with_score(
         query=query,
@@ -169,4 +176,4 @@ def semantic_search(
         filter=combined_filter,
     )
 
-    return [doc for doc, _score in results]
+    return [doc for doc, _ in results]
