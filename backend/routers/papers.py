@@ -1,5 +1,3 @@
-# backend/routers/papers.py
-
 import aiohttp
 import os
 from datetime import datetime
@@ -17,6 +15,11 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 papers_router = APIRouter(prefix="/papers", tags=["Papers"])
 
+
+# ==================================================
+# 📌 Recent arXiv papers
+# ==================================================
+
 @papers_router.get("/recent")
 async def get_recent_papers(
     limit: int = Query(10, ge=5, le=20),
@@ -30,6 +33,11 @@ async def get_recent_papers(
         p["_id"] = str(p["_id"])
 
     return papers
+
+
+# ==================================================
+# 🔍 Semantic search over abstracts
+# ==================================================
 
 @papers_router.get("/search")
 async def search_papers(
@@ -58,11 +66,19 @@ async def search_papers(
 
     return papers
 
+
+# ==================================================
+# 🧠 Analyze / process arXiv paper
+# ==================================================
+
 @papers_router.post("/analyze/{paper_id}")
 async def analyze_arxiv_paper(
     paper_id: str,
     current_user=Depends(get_current_user),
 ):
+    if not ObjectId.is_valid(paper_id):
+        raise HTTPException(400, "Invalid paper id")
+
     paper = await db.research_papers.find_one({"_id": ObjectId(paper_id)})
     if not paper:
         raise HTTPException(404, "Paper not found")
@@ -88,13 +104,111 @@ async def analyze_arxiv_paper(
 
         await extract_and_index_pdf(document)
 
+    # ✅ CONSISTENT recent view logging
     await db.recent_views.update_one(
         {
             "user_id": current_user["_id"],
-            "document_id": str(document["_id"]),
+            "type": "arxiv",
+            "paper_id": paper_id,
         },
-        {"$set": {"viewed_at": datetime.utcnow()}},
+        {
+            "$set": {
+                "title": paper["title"],
+                "abstract": paper.get("abstract"),
+                "published": paper.get("published"),
+                "document_id": str(document["_id"]),
+                "viewed_at": datetime.utcnow(),
+            }
+        },
         upsert=True,
     )
 
     return {"document_id": str(document["_id"])}
+
+
+
+# ==================================================
+# 🔁 Alias for frontend compatibility
+# ==================================================
+
+@papers_router.post("/process/{paper_id}")
+async def process_arxiv_paper(
+    paper_id: str,
+    current_user=Depends(get_current_user),
+):
+    return await analyze_arxiv_paper(paper_id, current_user)
+
+
+# ==================================================
+# 🕘 Recently viewed (mixed)
+# ==================================================
+
+@papers_router.get("/recently-viewed")
+async def get_recently_viewed(
+    limit: int = Query(10, ge=1, le=20),
+    current_user=Depends(get_current_user),
+):
+    views = await db.recent_views.find(
+        {"user_id": current_user["_id"]}
+    ).sort("viewed_at", -1).limit(limit).to_list(limit)
+
+    results = []
+
+    for v in views:
+        item = {
+            "type": v.get("type", "arxiv"),
+            "title": v.get("title"),
+            "viewed_at": v.get("viewed_at"),
+        }
+
+        if v["type"] == "arxiv":
+            item.update({
+                "_id": v.get("paper_id"),
+                "abstract": v.get("abstract"),
+                "published": v.get("published"),
+                "document_id": v.get("document_id"),
+            })
+        else:
+            item.update({
+                "_id": v.get("document_id"),
+            })
+
+        results.append(item)
+
+    return results
+
+# ==================================================
+# 📄 Paper details + view log
+# ==================================================
+
+@papers_router.get("/{paper_id}")
+async def get_paper_details(
+    paper_id: str,
+    current_user=Depends(get_current_user),
+):
+    if not ObjectId.is_valid(paper_id):
+        raise HTTPException(400, "Invalid paper id")
+
+    paper = await db.research_papers.find_one({"_id": ObjectId(paper_id)})
+    if not paper:
+        raise HTTPException(404, "Paper not found")
+
+    await db.recent_views.update_one(
+        {
+            "user_id": current_user["_id"],
+            "type": "arxiv",
+            "paper_id": paper_id,
+        },
+        {
+            "$set": {
+                "title": paper["title"],
+                "abstract": paper.get("abstract"),
+                "published": paper.get("published"),
+                "viewed_at": datetime.utcnow(),
+            }
+        },
+        upsert=True,
+    )
+
+    paper["_id"] = str(paper["_id"])
+    return paper
