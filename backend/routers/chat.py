@@ -110,7 +110,7 @@ async def clear_chat_history(
     current_user=Depends(get_current_user),
 ):
     await db.chat_history.delete_many({
-        "document_id": metadata_id,
+        "document_id": ObjectId(metadata_id),
         "user_id": current_user["_id"],
     })
     return {"status": "cleared"}

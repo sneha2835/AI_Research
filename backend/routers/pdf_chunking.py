@@ -185,7 +185,6 @@ Answer in clear academic English (4–6 sentences):
     await db.chat_history.insert_many([
     {
         "document_id": ObjectId(payload.document_id),
-        "document_id_str": payload.document_id,
         "user_id": current_user["_id"],
         "role": "user",
         "type": "qa",
@@ -195,7 +194,6 @@ Answer in clear academic English (4–6 sentences):
     },
     {
         "document_id": ObjectId(payload.document_id),
-        "document_id_str": payload.document_id,
         "user_id": current_user["_id"],
         "role": "assistant",
         "type": "qa",

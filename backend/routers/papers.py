@@ -101,8 +101,13 @@ async def analyze_arxiv_paper(
             {"$set": {"path": path}}
         )
 
-    document["path"] = path
-    await extract_and_index_pdf(document)
+        document["path"] = path
+        await extract_and_index_pdf(document)
+
+    else:
+        # already indexed → just reuse stored path
+        document["path"] = document["path"]
+
 
 
     # ✅ CONSISTENT recent view logging

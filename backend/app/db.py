@@ -59,13 +59,17 @@ async def create_indexes():
     )
 
     # 🔥 NEW: Enforce ONE view per user per document
+    # arXiv views
     await db.recent_views.create_index(
-        [
-            ("user_id", 1),
-            ("type", 1),
-            ("paper_id", 1),
-            ("document_id", 1),
-        ],
+        [("user_id", 1), ("paper_id", 1)],
         unique=True,
-        sparse=True,
+        partialFilterExpression={"type": "arxiv"},
     )
+
+    # uploaded PDFs
+    await db.recent_views.create_index(
+        [("user_id", 1), ("document_id", 1)],
+        unique=True,
+        partialFilterExpression={"type": "upload"},
+    )
+
