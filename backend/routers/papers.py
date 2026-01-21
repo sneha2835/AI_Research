@@ -122,14 +122,16 @@ async def analyze_arxiv_paper(
                 "title": paper["title"],
                 "abstract": paper.get("abstract"),
                 "published": paper.get("published"),
-                "document_id": str(document["_id"]),
+                "document_id": ObjectId(document["_id"]),
                 "viewed_at": datetime.utcnow(),
             }
         },
         upsert=True,
     )
 
-    return {"document_id": str(document["_id"])}
+    return {
+        "document_id": str(document["_id"])
+    }
 
 
 
