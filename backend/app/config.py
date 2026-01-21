@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     # --------------------
     # LLM / HuggingFace
     # --------------------
-    HF_QA_MODEL: str = "google/flan-t5-base"
+    HF_QA_MODEL: str = "google/flan-t5-large"
     HF_SUMMARY_MODEL: str = "google/pegasus-arxiv"
     HF_TOKEN: str | None = None
 
