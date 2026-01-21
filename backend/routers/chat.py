@@ -81,7 +81,7 @@ async def get_chat_history(
 
     cursor = (
         db.chat_history.find({
-            "document_id": metadata_id,
+            "document_id": ObjectId(metadata_id),
             "user_id": current_user["_id"],
         })
         .sort("timestamp", 1)

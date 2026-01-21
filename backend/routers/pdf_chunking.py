@@ -179,28 +179,27 @@ Answer in clear academic English (4–6 sentences):
     timestamp = datetime.utcnow()
 
     await db.chat_history.insert_many([
-        {
-            
-            "document_id": payload.document_id,
-            "user_id": current_user["_id"],
-            "role": "user",
-            "type": "qa",
-            "content": payload.query,
-            "source": source,
-            "timestamp": timestamp,
-
-        },
-        {
-            "document_id": payload.document_id,
-            "user_id": current_user["_id"],
-            "role": "assistant",
-            "type": "qa",
-            "content": answer,
-            "source": source,
-            "timestamp": timestamp,
-
-        },
-    ])
+    {
+        "document_id": ObjectId(payload.document_id),
+        "document_id_str": payload.document_id,
+        "user_id": current_user["_id"],
+        "role": "user",
+        "type": "qa",
+        "content": payload.query,
+        "source": source,
+        "timestamp": timestamp,
+    },
+    {
+        "document_id": ObjectId(payload.document_id),
+        "document_id_str": payload.document_id,
+        "user_id": current_user["_id"],
+        "role": "assistant",
+        "type": "qa",
+        "content": answer,
+        "source": source,
+        "timestamp": timestamp,
+    },
+])
 
     return {"answer": answer}
 
@@ -306,14 +305,16 @@ Text:
     source = "arxiv" if document.get("source") == "arxiv" else "upload"
 
     await db.chat_history.insert_one({
-        "document_id": payload.document_id,
-        "user_id": current_user["_id"],
-        "role": "assistant",
-        "type": "summary",
-        "content": summary,
-        "source": source,
-        "timestamp": datetime.utcnow(),
-    })
+    "document_id": ObjectId(payload.document_id),
+    "document_id_str": payload.document_id,
+    "user_id": current_user["_id"],
+    "role": "assistant",
+    "type": "summary",
+    "content": summary,
+    "source": source,
+    "timestamp": datetime.utcnow(),
+})
+
 
     return {"summary": summary}
 
