@@ -298,4 +298,6 @@ zstandard==0.23.0
 pydantic-settings
 arxiv
 pymongo
+# python -m backend.scripts.fetch_arxiv
+# python -m backend.scripts.reindex_research_papers
 # uvicorn backend.app.main:app --reload

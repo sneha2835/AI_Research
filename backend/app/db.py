@@ -23,10 +23,12 @@ async def create_indexes():
 
     # 🔐 Prevent duplicate arXiv documents
     await db.documents.create_index(
-        [("source", 1), ("external_id", 1)],
-        unique=True,
-        partialFilterExpression={"source": "arxiv"},
-    )
+    [("source", 1), ("external_id", 1)],
+    name="arxiv_unique_source_external",
+    unique=True,
+    partialFilterExpression={"source": "arxiv"},
+)
+
 
     # 🔥 Faster ownership + access checks
     await db.documents.create_index([

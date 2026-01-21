@@ -42,7 +42,7 @@ async def extract_and_index_pdf(document: dict):
             page_content=raw,
             metadata={
                 "metadata_id": str(document["_id"]),
-                "user_id": str(document["owner"]),
+                "user_id": str(document["owner"]) if document.get("owner") else None,
                 "section": section,
             },
         ))

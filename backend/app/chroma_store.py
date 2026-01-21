@@ -98,7 +98,7 @@ def add_chunks_to_chroma(chunks, doc_id: str, user_id=None):
 
     for i, c in enumerate(chunks):
 
-        # ✅ Robust handling: Document OR dict
+        # ✅ Document OR dict safety
         if isinstance(c, dict):
             content = c.get("page_content")
             metadata = c.get("metadata", {})
@@ -111,9 +111,10 @@ def add_chunks_to_chroma(chunks, doc_id: str, user_id=None):
 
         texts.append(content)
 
+        # ✅ USE METADATA AS-IS (single source of truth)
         metadatas.append({
-            "metadata_id": str(doc_id),
-            "user_id": str(user_id) if user_id else None,
+            "metadata_id": metadata.get("metadata_id"),
+            "user_id": metadata.get("user_id"),
             "section": metadata.get("section"),
         })
 
@@ -125,6 +126,7 @@ def add_chunks_to_chroma(chunks, doc_id: str, user_id=None):
             metadatas=metadatas,
             ids=ids,
         )
+
 
 def semantic_search(
     query,
