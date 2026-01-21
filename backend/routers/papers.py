@@ -174,7 +174,7 @@ async def get_recently_viewed(
                 "_id": v.get("paper_id"),
                 "abstract": v.get("abstract"),
                 "published": v.get("published"),
-                "document_id": v.get("document_id"),
+                "document_id": str(v.get("document_id")),
             })
         else:
             item.update({

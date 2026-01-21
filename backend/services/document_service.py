@@ -54,3 +54,4 @@ async def create_uploaded_document(
     result = await db.documents.insert_one(doc)
     doc["_id"] = result.inserted_id
     return doc
+
