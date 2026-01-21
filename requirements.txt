@@ -298,3 +298,4 @@ zstandard==0.23.0
 pydantic-settings
 arxiv
 pymongo
+# uvicorn backend.app.main:app --reload
