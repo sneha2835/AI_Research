@@ -73,3 +73,10 @@ async def create_indexes():
         partialFilterExpression={"type": "upload"},
     )
 
+    # 🔥 Auto-clean recent views after 90 days
+    await db.recent_views.create_index(
+        "viewed_at",
+        expireAfterSeconds=60 * 60 * 24 * 90
+    )
+
+

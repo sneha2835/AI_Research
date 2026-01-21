@@ -9,6 +9,7 @@ from backend.app.chroma_store import semantic_search
 from backend.services.pdf_service import extract_and_index_pdf
 from backend.app.llm_inference import answer_from_context, summarize_text
 from backend.schemas.pdf import AskPdfRequest, SummarizePdfRequest
+from backend.services.document_service import create_uploaded_document
 
 import os
 import re
@@ -58,18 +59,11 @@ async def upload_pdf(
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(400, "Only PDF files are allowed")
 
-    document = {
-    "owner": current_user["_id"],
-    "title": file.filename,
-    "created_at": datetime.utcnow(),
-    "path": None,
-    "source": "upload",
-    "indexed": False, 
-    }
+    document = await create_uploaded_document(
+    filename=file.filename,
+    user_id=current_user["_id"],
+)
 
-
-    result = await db.documents.insert_one(document)
-    document["_id"] = result.inserted_id
 
     path = os.path.join(UPLOAD_DIR, f"{document['_id']}.pdf")
 
@@ -141,9 +135,10 @@ async def ask_pdf(
         query=payload.query,
         n_results=payload.n_results,
         metadata_id=payload.document_id,
-        user_id=document.get("owner"),
+        user_id=document.get("owner") if source == "upload" else None,
         section_priority=True,
     )
+
 
     valid_chunks = [
         c for c in chunks
@@ -257,9 +252,10 @@ async def summarize_pdf(
         query="Summarize the main contributions and findings of this paper",
         n_results=12,
         metadata_id=payload.document_id,
-        user_id=document.get("owner"),
+        user_id=document.get("owner") if source == "upload" else None,
         section_priority=True,
     )
+
 
     valid_chunks = [
         c for c in chunks
