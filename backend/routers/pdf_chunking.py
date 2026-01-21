@@ -225,7 +225,8 @@ async def summarize_pdf(
 
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
-    
+    source = "arxiv" if document.get("source") == "arxiv" else "upload"
+
     # ==================================================
     # 🕘 LOG RECENT VIEW (UPLOAD ONLY)
     # ==================================================
