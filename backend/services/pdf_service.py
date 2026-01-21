@@ -4,6 +4,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
 from backend.app.chroma_store import add_chunks_to_chroma
 from pypdf import PdfReader
+from backend.app.db import db
 
 def detect_section(text: str) -> str:
     text_l = text.lower()
@@ -47,3 +48,9 @@ async def extract_and_index_pdf(document: dict):
         ))
 
     add_chunks_to_chroma(chunks, str(document["_id"]), document["owner"])
+
+# ✅ mark document as indexed
+    await db.documents.update_one(
+        {"_id": document["_id"]},
+        {"$set": {"indexed": True}}
+    )

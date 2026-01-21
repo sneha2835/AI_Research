@@ -85,7 +85,7 @@ async def analyze_arxiv_paper(
 
     document = await get_or_create_arxiv_document(paper)
 
-    if not document.get("path"):
+    if not document.get("indexed"):
         async with aiohttp.ClientSession() as session:
             async with session.get(paper["pdf_url"]) as resp:
                 if resp.status != 200:
@@ -98,11 +98,12 @@ async def analyze_arxiv_paper(
 
         await db.documents.update_one(
             {"_id": document["_id"]},
-            {"$set": {"path": path}},
+            {"$set": {"path": path}}
         )
-        document["path"] = path
 
-        await extract_and_index_pdf(document)
+    document["path"] = path
+    await extract_and_index_pdf(document)
+
 
     # ✅ CONSISTENT recent view logging
     await db.recent_views.update_one(

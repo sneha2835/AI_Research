@@ -20,14 +20,16 @@ async def get_or_create_arxiv_document(paper: dict) -> dict:
         return existing
 
     doc = {
-        "type": "pdf",
-        "source": "arxiv",
-        "title": paper["title"],
-        "external_id": str(paper["_id"]),
-        "path": None,              # filled after PDF download
-        "owner": None,             # GLOBAL
-        "created_at": datetime.utcnow(),
-    }
+    "type": "pdf",
+    "source": "arxiv",
+    "title": paper["title"],
+    "external_id": str(paper["_id"]),
+    "path": None,
+    "owner": None,
+    "indexed": False,   # ✅ ADD THIS
+    "created_at": datetime.utcnow(),
+}
+
 
     result = await db.documents.insert_one(doc)
     doc["_id"] = result.inserted_id

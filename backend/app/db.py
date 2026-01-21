@@ -30,7 +30,7 @@ async def create_indexes():
         ("owner", 1),
         ("source", 1),
     ])
-
+    await db.documents.create_index("indexed")
     # -------------------------
     # Research papers (dashboard)
     # -------------------------

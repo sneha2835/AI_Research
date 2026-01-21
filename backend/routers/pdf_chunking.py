@@ -59,12 +59,14 @@ async def upload_pdf(
         raise HTTPException(400, "Only PDF files are allowed")
 
     document = {
-        "owner": current_user["_id"],
-        "title": file.filename,
-        "created_at": datetime.utcnow(),
-        "path": None,
-        "source": "upload",
+    "owner": current_user["_id"],
+    "title": file.filename,
+    "created_at": datetime.utcnow(),
+    "path": None,
+    "source": "upload",
+    "indexed": False, 
     }
+
 
     result = await db.documents.insert_one(document)
     document["_id"] = result.inserted_id
@@ -79,11 +81,13 @@ async def upload_pdf(
         {"$set": {"path": path}},
     )
 
-    await extract_and_index_pdf({
-        "_id": document["_id"],
-        "path": path,
-        "owner": current_user["_id"],
-    })
+    if not document.get("indexed"):
+        await extract_and_index_pdf({
+            "_id": document["_id"],
+            "path": path,
+            "owner": current_user["_id"],
+        })
+
 
     return {
         "document_id": str(document["_id"]),
