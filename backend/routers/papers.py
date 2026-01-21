@@ -178,7 +178,7 @@ async def get_recently_viewed(
             })
         else:
             item.update({
-                "_id": v.get("document_id"),
+                "_id": str(v.get("document_id")),
             })
 
         results.append(item)

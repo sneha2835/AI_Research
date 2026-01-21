@@ -120,7 +120,8 @@ async def ask_pdf(
             {
                 "user_id": current_user["_id"],
                 "type": "upload",
-                "document_id": payload.document_id,
+                "document_id": ObjectId(payload.document_id),
+
             },
             {
                 "$set": {
@@ -235,7 +236,8 @@ async def summarize_pdf(
             {
                 "user_id": current_user["_id"],
                 "type": "upload",
-                "document_id": payload.document_id,
+                "document_id": ObjectId(payload.document_id),
+
             },
             {
                 "$set": {
