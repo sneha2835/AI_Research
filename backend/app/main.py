@@ -6,6 +6,7 @@ import logging
 from backend.routers import papers
 from backend.routers import auth, users, pdf_chunking
 from backend.app.db import check_mongo_connection, create_indexes
+from backend.routers.chat import chat_router
 
 logging.basicConfig(level=logging.INFO)
 
@@ -18,6 +19,7 @@ app.include_router(auth.auth_router)
 app.include_router(users.users_router)
 app.include_router(pdf_chunking.pdf_router)
 app.include_router(papers.papers_router)
+app.include_router(chat_router)
 
 app.add_middleware(
     CORSMiddleware,
