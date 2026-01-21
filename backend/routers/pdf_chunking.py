@@ -8,19 +8,47 @@ from backend.app.auth import get_current_user
 from backend.app.chroma_store import semantic_search
 from backend.services.pdf_service import extract_and_index_pdf
 from backend.app.llm_inference import answer_from_context, summarize_text
-import os, re
-from typing import List
-from fastapi import UploadFile, File
 from backend.schemas.pdf import AskPdfRequest, SummarizePdfRequest
+
+import os
+import re
 
 pdf_router = APIRouter(prefix="/pdf", tags=["PDF"])
 
 UPLOAD_DIR = "backend/pdf_uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# --------------------------------------------------
-# Upload PDF
-# --------------------------------------------------
+# ==================================================
+# 🔧 HELPER FUNCTIONS
+# ==================================================
+
+def is_junk_chunk(text: str) -> bool:
+    text = text.strip()
+    if len(text) < 30:
+        return True
+    if re.fullmatch(r"\[\d+\]", text):
+        return True
+    return False
+
+
+def deduplicate_chunks(chunks, max_chunks):
+    seen = set()
+    unique = []
+
+    for c in chunks:
+        key = c.page_content.strip()[:200]
+        if key not in seen:
+            seen.add(key)
+            unique.append(c)
+        if len(unique) >= max_chunks:
+            break
+
+    return unique
+
+
+# ==================================================
+# 📤 Upload PDF
+# ==================================================
 
 @pdf_router.post("/upload")
 async def upload_pdf(
@@ -35,6 +63,7 @@ async def upload_pdf(
         "title": file.filename,
         "created_at": datetime.utcnow(),
         "path": None,
+        "source": "upload",
     }
 
     result = await db.documents.insert_one(document)
@@ -61,57 +90,76 @@ async def upload_pdf(
         "status": "uploaded",
     }
 
-# --------------------------------------------------
-# Ask PDF
-# --------------------------------------------------
+
+# ==================================================
+# ❓ Ask PDF (Q&A) + CHAT HISTORY
+# ==================================================
 
 @pdf_router.post("/ask")
-async def ask_pdf(payload: AskPdfRequest, current_user=Depends(get_current_user)):
-    # 1) Validate document
+async def ask_pdf(
+    payload: AskPdfRequest,
+    current_user=Depends(get_current_user),
+):
+    if not ObjectId.is_valid(payload.document_id):
+        raise HTTPException(400, "Invalid document id")
+
     document = await db.documents.find_one({
-    "_id": ObjectId(payload.document_id),
-    "$or": [
-        {"owner": current_user["_id"]},
-        {"owner": None}
-    ]
-})
+        "_id": ObjectId(payload.document_id),
+        "$or": [
+            {"owner": current_user["_id"]},
+            {"owner": None},
+        ],
+    })
 
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    # 2) Retrieve top chunks
+    source = "arxiv" if document.get("source") == "arxiv" else "upload"
+
+    # 🕘 LOG RECENT VIEW (UPLOAD ONLY)
+    if source == "upload":
+        await db.recent_views.update_one(
+            {
+                "user_id": current_user["_id"],
+                "type": "upload",
+                "document_id": payload.document_id,
+            },
+            {
+                "$set": {
+                    "title": document.get("title"),
+                    "viewed_at": datetime.utcnow(),
+                }
+            },
+            upsert=True,
+        )
+
     chunks = semantic_search(
-        query=f"Core objective and contributions: {payload.query}",
+        query=payload.query,
         n_results=payload.n_results,
         metadata_id=payload.document_id,
         user_id=document.get("owner"),
         section_priority=True,
     )
 
-    # 3) Filter out empty page_content
     valid_chunks = [
-    c for c in chunks if getattr(c, "page_content", "").strip()
+        c for c in chunks
+        if getattr(c, "page_content", "").strip()
+        and not is_junk_chunk(c.page_content)
     ]
+
     valid_chunks = deduplicate_chunks(valid_chunks, payload.n_results)
-    valid_chunks = [
-        c for c in valid_chunks
-        if not is_junk_chunk(c.page_content)
-    ]
 
-
-    # If no chunks found, return clear message
     if not valid_chunks:
-        return {"answer": "No relevant content found in this document."}
+        answer = "No relevant content found in this document."
+    else:
+        context = "\n\n".join(c.page_content for c in valid_chunks)[:3500]
 
-    # 4) Build context slice safely
-    context = "\n\n".join(c.page_content for c in valid_chunks)[:3500]
+        prompt = f"""
+You are an expert academic research assistant.
 
-    # 5) Academic prompt
-    prompt = f"""
-You are an expert academic assistant.
-Use the context below as your primary source.
-Paraphrase clearly in your own words.
-Do NOT copy citation markers like [1], [2], etc.
+Answer the question strictly using the context below.
+If the answer is not explicitly stated, say:
+"The paper does not explicitly state this."
 
 Context:
 {context}
@@ -119,51 +167,93 @@ Context:
 Question:
 {payload.query}
 
-Answer (clear, concise, academic):
+Answer in clear academic English (4–6 sentences):
 """.strip()
 
+        answer = answer_from_context(prompt) or "The paper does not explicitly state this."
 
-    # 6) Generate answer
-    answer = answer_from_context(prompt)
-    if re.fullmatch(r"\[\d+\]", answer.strip()):
-        answer = ""
+    # ==================================================
+    # 💾 SAVE CHAT HISTORY (USER + ASSISTANT)
+    # ==================================================
+
+    timestamp = datetime.utcnow()
+
+    await db.chat_history.insert_many([
+        {
+            
+            "document_id": payload.document_id,
+            "user_id": current_user["_id"],
+            "role": "user",
+            "type": "qa",
+            "content": payload.query,
+            "source": source,
+            "timestamp": timestamp,
+
+        },
+        {
+            "document_id": payload.document_id,
+            "user_id": current_user["_id"],
+            "role": "assistant",
+            "type": "qa",
+            "content": answer,
+            "source": source,
+            "timestamp": timestamp,
+
+        },
+    ])
 
     return {"answer": answer}
 
 
-def is_junk_chunk(text: str) -> bool:
-    text = text.strip()
-    if len(text) < 30:
-        return True
-    if re.fullmatch(r"\[\d+\]", text):
-        return True
-    return False
-
-
-# --------------------------------------------------
-# Summarize PDF
-# --------------------------------------------------
+# ==================================================
+# 📝 Summarize PDF
+# ==================================================
 
 @pdf_router.post("/summarize")
 async def summarize_pdf(
     payload: SummarizePdfRequest,
     current_user=Depends(get_current_user),
 ):
-    # 1) Validate document ownership
+    # 1) Validate document access
+    if not ObjectId.is_valid(payload.document_id):
+        raise HTTPException(400, "Invalid document id")
+
     document = await db.documents.find_one({
-    "_id": ObjectId(payload.document_id),
-    "$or": [
-        {"owner": current_user["_id"]},
-        {"owner": None}
-    ]
-})
+        "_id": ObjectId(payload.document_id),
+        "$or": [
+            {"owner": current_user["_id"]},
+            {"owner": None},
+        ],
+    })
 
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
+    
+    source = "arxiv" if document.get("source") == "arxiv" else "upload"
 
-    # 2) Retrieve chunks prioritized by section
+    # ==================================================
+    # 🕘 LOG RECENT VIEW (UPLOAD ONLY)
+    # ==================================================
+    if source == "upload":
+        await db.recent_views.update_one(
+            {
+                "user_id": current_user["_id"],
+                "type": "upload",
+                "document_id": payload.document_id,
+            },
+            {
+                "$set": {
+                    "title": document.get("title"),
+                    "viewed_at": datetime.utcnow(),
+                }
+            },
+            upsert=True,
+        )
+
+        
+    # 2) Retrieve chunks
     chunks = semantic_search(
-        query="Summarize this research paper",
+        query="Summarize the main contributions and findings of this paper",
         n_results=12,
         metadata_id=payload.document_id,
         user_id=document.get("owner"),
@@ -171,44 +261,59 @@ async def summarize_pdf(
     )
 
     valid_chunks = [
-    c for c in chunks if getattr(c, "page_content", "").strip()
-    ]
-    valid_chunks = deduplicate_chunks(valid_chunks, 10)
-    valid_chunks = [
-        c for c in valid_chunks
-        if not is_junk_chunk(c.page_content)
+        c for c in chunks
+        if getattr(c, "page_content", "").strip()
+        and not is_junk_chunk(c.page_content)
     ]
 
+    valid_chunks = deduplicate_chunks(valid_chunks, 10)
 
     if not valid_chunks:
         return {"summary": "No readable content found in this document."}
 
+    # 3) Build context
     context = "\n\n".join(c.page_content for c in valid_chunks)[:4000]
 
-    # 3) Academic summarization prompt
+    # 4) Structured summarization prompt
+    prompt = f"""
+Summarize the following academic paper using the structure below.
 
-    summary = summarize_text(context)
+Format:
+Objective:
+Problem Statement:
+Methodology (if mentioned):
+Key Findings:
+Conclusion:
 
+Text:
+{context}
+""".strip()
+
+    summary = summarize_text(prompt)
 
     if not summary or not summary.strip():
         summary = (
-            "This paper discusses findings related to mobile learning, "
-            "highlighting its flexibility, engagement benefits, and "
-            "potential to improve personalized learning outcomes."
+            "Objective:\nNot clearly stated.\n\n"
+            "Problem Statement:\nNot clearly stated.\n\n"
+            "Methodology:\nNot clearly stated.\n\n"
+            "Key Findings:\nNot clearly stated.\n\n"
+            "Conclusion:\nNot clearly stated."
         )
+    # ==================================================
+    # 💾 SAVE SUMMARY TO CHAT HISTORY
+    # ==================================================
+
+    source = "arxiv" if document.get("source") == "arxiv" else "upload"
+
+    await db.chat_history.insert_one({
+        "document_id": payload.document_id,
+        "user_id": current_user["_id"],
+        "role": "assistant",
+        "type": "summary",
+        "content": summary,
+        "source": source,
+        "timestamp": datetime.utcnow(),
+    })
 
     return {"summary": summary}
 
-def deduplicate_chunks(chunks, max_chunks):
-    seen = set()
-    unique = []
-
-    for c in chunks:
-        key = c.page_content.strip()[:200]
-        if key not in seen:
-            seen.add(key)
-            unique.append(c)
-        if len(unique) >= max_chunks:
-            break
-
-    return unique
