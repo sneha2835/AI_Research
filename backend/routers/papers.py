@@ -105,8 +105,8 @@ async def analyze_arxiv_paper(
         await extract_and_index_pdf(document)
 
     else:
-        # already indexed → just reuse stored path
-        document["path"] = document["path"]
+        if not document.get("path"):
+            raise HTTPException(500, "Indexed document missing PDF path")
 
 
 

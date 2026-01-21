@@ -308,7 +308,6 @@ Text:
 
     await db.chat_history.insert_one({
     "document_id": ObjectId(payload.document_id),
-    "document_id_str": payload.document_id,
     "user_id": current_user["_id"],
     "role": "assistant",
     "type": "summary",

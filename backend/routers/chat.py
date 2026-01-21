@@ -54,7 +54,7 @@ async def save_chat_message(
     source = "arxiv" if document.get("source") == "arxiv" else "upload"
 
     chat_doc = {
-        "document_id": payload.metadata_id,
+        "document_id": ObjectId(payload.metadata_id),
         "user_id": current_user["_id"],
         "role": payload.role,
         "content": payload.content,
