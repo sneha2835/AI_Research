@@ -7,6 +7,7 @@ aiosignal==1.4.0
 altair==5.5.0
 annotated-types==0.7.0
 anyio==4.10.0
+arxiv==2.4.0
 asgiref==3.8.1
 astrapy==2.0.1
 astunparse==1.6.3
@@ -64,6 +65,7 @@ ecdsa==0.19.1
 email_validator==2.2.0
 faiss-cpu==1.11.0.post1
 fastapi==0.116.1
+feedparser==6.0.12
 filelock==3.18.0
 filetype==1.2.0
 Flask==3.1.0
@@ -215,6 +217,7 @@ python-multipart==0.0.20
 python-ulid==3.0.0
 pytz==2025.2
 PyYAML==6.0.2
+rank-bm25==0.2.2
 redis==5.2.1
 redisvl==0.8.0
 referencing==0.36.2
@@ -233,6 +236,7 @@ seaborn==0.13.2
 sentence-transformers==3.4.1
 sentencepiece==0.2.1
 setuptools==80.9.0
+sgmllib3k==1.0.0
 shellingham==1.5.4
 six==1.17.0
 smart-open==7.1.0
@@ -295,9 +299,7 @@ yarl==1.20.1
 zipp==3.23.0
 zopfli==0.2.3.post1
 zstandard==0.23.0
-pydantic-settings
-arxiv
-pymongo
+
 # python -m backend.scripts.fetch_arxiv
 # python -m backend.scripts.reindex_research_papers
 # uvicorn backend.app.main:app --reload

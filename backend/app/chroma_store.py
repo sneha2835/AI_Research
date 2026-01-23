@@ -145,7 +145,7 @@ def semantic_search(
     # --- PRIORITY SEARCH ---
     if section_priority:
         priority_conditions = base_filters + [
-            {"section": {"$in": ["abstract", "introduction"]}}
+            {"section": {"$in": ["definition","abstract", "introduction"]}}
         ]
 
         if not priority_conditions:
