@@ -1,10 +1,11 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import Landing from './components/Landing';
+import LandingElicit from './components/LandingElicit';
 import Login from './components/Login';
 import Register from './components/Register';
-import Dashboard from './components/Dashboard';
+import DashboardElicit from './components/DashboardElicit';
 import Chat from './components/Chat';
+import Profile from './components/Profile';
 import './App.css';
 
 const PrivateRoute = ({ children }) => {
@@ -30,7 +31,7 @@ const PublicRoute = ({ children }) => {
 function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<Landing />} />
+      <Route path="/" element={<LandingElicit />} />
       <Route
         path="/login"
         element={
@@ -51,7 +52,7 @@ function AppRoutes() {
         path="/dashboard"
         element={
           <PrivateRoute>
-            <Dashboard />
+            <DashboardElicit />
           </PrivateRoute>
         }
       />
@@ -60,6 +61,14 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <Chat />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <PrivateRoute>
+            <Profile />
           </PrivateRoute>
         }
       />

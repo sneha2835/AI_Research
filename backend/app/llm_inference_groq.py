@@ -1,7 +1,6 @@
 import os
 import requests
 from dotenv import load_dotenv
-from typing import List, Dict
 
 load_dotenv()
 
@@ -10,7 +9,7 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 DEFAULT_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 DEFAULT_TEMP = float(os.getenv("LLM_TEMP", "0.3"))
-DEFAULT_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "1024"))
+DEFAULT_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "2048"))
 
 # Reusable HTTP session for connection pooling
 session = requests.Session()
@@ -20,7 +19,7 @@ session.headers.update({
 })
 
 def generate_answer(prompt: str) -> str:
-    """Generate answer using Groq API with connection reuse and safer JSON parsing"""
+    """Generate answer using Groq API with connection reuse"""
     if not GROQ_API_KEY:
         return "Please configure GROQ_API_KEY in your .env file"
     
@@ -54,69 +53,6 @@ def generate_answer(prompt: str) -> str:
 
 
 def generate_summary(prompt: str) -> str:
+    """Generate summary using Groq API"""
     return generate_answer(prompt)
-
-
-def generate_followup_questions(prompt: str) -> str:
-    return generate_answer(prompt)
-
-
-def search_web(query: str) -> List[Dict[str, str]]:
-    """
-    Performs web search for queries that cannot be answered from the PDF document.
-    
-    Automatically triggered when information is not found in the document context.
-    Uses DuckDuckGo's free search API (no API key required) and returns top 3 results
-    as structured data.
-    
-    Args:
-        query: The search query string
-        
-    Returns:
-        List[Dict]: List of search results with 'title', 'summary', and 'url' keys
-    """
-    try:
-        from duckduckgo_search import DDGS
-        
-        # Explicit user-agent prevents silent blocking
-        with DDGS(headers={"User-Agent": "pdf-ai-agent/1.0"}) as ddgs:
-            results = list(ddgs.text(query, max_results=3))
-            
-        if not results:
-            return []
-        
-        # Normalize fields defensively (DuckDuckGo sometimes returns different keys)
-        structured_results = []
-        for result in results:
-            title = result.get("title") or result.get("heading") or "No title"
-            body = result.get("body") or result.get("snippet") or "No description"
-            url = result.get("href") or result.get("url") or "No URL"
-            
-            structured_results.append({
-                "title": title,
-                "summary": body,
-                "url": url
-            })
-        
-        return structured_results
-    
-    except ImportError:
-        return [{"title": "Error", "summary": "Web search unavailable. Please install: pip install duckduckgo-search", "url": ""}]
-    except Exception as e:
-        print(f"Web search error: {e}")
-        return [{"title": "Error", "summary": "Web search temporarily unavailable.", "url": ""}]
-
-
-def format_web_results(results: List[Dict[str, str]]) -> str:
-    """Format structured web results into readable text"""
-    if not results:
-        return "No web results found."
-    
-    formatted = "Web Search Results:\n\n"
-    for idx, result in enumerate(results, 1):
-        formatted += f"[{idx}] {result['title']}\n"
-        formatted += f"    {result['summary']}\n"
-        formatted += f"    Source: {result['url']}\n\n"
-    
-    return formatted
 

@@ -1,22 +1,26 @@
+version: '3.8'
+
 services:
-  # MongoDB Database
   mongodb:
     image: mongo:7.0
-    container_name: research_mongodb
+    container_name: research_companion_mongo
+    restart: unless-stopped
     ports:
       - "27017:27017"
     volumes:
       - ./mongodb_data:/data/db
     environment:
-      - MONGO_INITDB_DATABASE=research_db
-    networks:
-      - research_network
-    restart: unless-stopped
+      - MONGO_INITDB_DATABASE=research_companion
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  # ChromaDB Vector Database
   chromadb:
     image: chromadb/chroma:latest
-    container_name: research_chromadb
+    container_name: research_companion_chroma
+    restart: unless-stopped
     ports:
       - "8000:8000"
     volumes:
@@ -24,40 +28,3 @@ services:
     environment:
       - IS_PERSISTENT=TRUE
       - ANONYMIZED_TELEMETRY=FALSE
-    networks:
-      - research_network
-    restart: unless-stopped
-
-  # GROBID for PDF parsing
-  grobid:
-    image: lfoppiano/grobid:0.8.0
-    container_name: research_grobid
-    ports:
-      - "8070:8070"
-    volumes:
-      - ./grobid:/opt/grobid
-    networks:
-      - research_network
-    restart: unless-stopped
-
-  # Ollama for LLM
-  ollama:
-    image: ollama/ollama:latest
-    container_name: research_ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ./models:/root/.ollama
-    networks:
-      - research_network
-    restart: unless-stopped
-
-networks:
-  research_network:
-    driver: bridge
-
-volumes:
-  mongodb_data:
-  vector_db:
-  grobid:
-  models:
