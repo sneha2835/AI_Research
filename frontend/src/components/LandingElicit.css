@@ -1,0 +1,387 @@
+/* Elicit AI-inspired Landing Page */
+.elicit-landing {
+  min-height: 100vh;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', sans-serif;
+}
+
+/* Top Navigation */
+.elicit-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 2rem;
+  border-bottom: 1px solid #e5e7eb;
+  background: white;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.nav-left {
+  display: flex;
+  align-items: center;
+  gap: 3rem;
+}
+
+.elicit-logo {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #0ea5e9;
+  cursor: pointer;
+}
+
+.elicit-nav-links {
+  display: flex;
+  gap: 2rem;
+}
+
+.nav-link {
+  color: #6b7280;
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: color 0.2s;
+  cursor: pointer;
+}
+
+.nav-link:hover {
+  color: #0ea5e9;
+}
+
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.btn-upgrade {
+  background: #0ea5e9;
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  border: none;
+  font-weight: 600;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-upgrade:hover {
+  background: #0284c7;
+}
+
+.help-menu {
+  color: #6b7280;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.dropdown-arrow {
+  font-size: 0.75rem;
+}
+
+.user-profile {
+  background: #0ea5e9;
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.user-profile:hover {
+  background: #0284c7;
+}
+
+/* Content Layout */
+.elicit-content {
+  display: flex;
+  flex: 1;
+}
+
+/* Left Sidebar */
+.elicit-sidebar {
+  width: 260px;
+  background: #f8f9fa;
+  border-right: 1px solid #e5e7eb;
+  padding: 1.5rem 1rem;
+  overflow-y: auto;
+}
+
+.sidebar-section {
+  margin-bottom: 2rem;
+}
+
+.sidebar-section-title {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #6b7280;
+  letter-spacing: 0.5px;
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.5rem 0.75rem;
+  color: #374151;
+  border-radius: 6px;
+  transition: all 0.2s;
+  cursor: pointer;
+  font-size: 0.875rem;
+  margin-bottom: 0.125rem;
+}
+
+.sidebar-item:hover {
+  background: #e5e7eb;
+}
+
+.sidebar-item.active {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.sidebar-item-icon {
+  font-size: 1rem;
+}
+
+.pro-badge,
+.beta-badge {
+  margin-left: auto;
+  padding: 0.125rem 0.375rem;
+  border-radius: 3px;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.pro-badge {
+  background: #dbeafe;
+  color: #0ea5e9;
+}
+
+.beta-badge {
+  background: #fef3c7;
+  color: #f59e0b;
+}
+
+/* Main Content */
+.elicit-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Hero Search Area */
+.elicit-hero {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 2rem;
+}
+
+.hero-search-container {
+  width: 100%;
+  max-width: 800px;
+}
+
+.hero-search-input {
+  width: 100%;
+  padding: 1rem 1.25rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 1rem;
+  color: #374151;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s;
+  margin-bottom: 0.75rem;
+}
+
+.hero-search-input:focus {
+  outline: none;
+  border-color: #0ea5e9;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+}
+
+.hero-search-input::placeholder {
+  color: #9ca3af;
+}
+
+.hero-search-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.source-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.source-label {
+  font-size: 0.875rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.source-dropdown {
+  padding: 0.375rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  color: #374151;
+  background: white;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.source-dropdown:focus {
+  outline: none;
+  border-color: #0ea5e9;
+}
+
+.btn-search {
+  padding: 0.625rem 1.5rem;
+  background: #0ea5e9;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: all 0.2s;
+}
+
+.btn-search:hover {
+  background: #0284c7;
+}
+
+/* Recents Section */
+.elicit-recents {
+  padding: 1.5rem 2rem;
+  border-top: 1px solid #e5e7eb;
+  background: #fafafa;
+}
+
+.recents-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.recents-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.view-all-link {
+  font-size: 0.875rem;
+  color: #0ea5e9;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.view-all-link:hover {
+  text-decoration: underline;
+}
+
+.recents-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.recent-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.recent-item:hover {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border-color: #d1d5db;
+}
+
+.recent-item-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.recent-icon {
+  font-size: 1rem;
+}
+
+.recent-query {
+  color: #374151;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.recent-item-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  color: #9ca3af;
+  font-size: 0.75rem;
+}
+
+.recent-tool {
+  color: #6b7280;
+}
+
+.recent-time {
+  color: #9ca3af;
+}
+
+.recent-more {
+  cursor: pointer;
+  color: #9ca3af;
+  font-size: 1.125rem;
+}
+
+.recent-more:hover {
+  color: #6b7280;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .elicit-sidebar {
+    display: none;
+  }
+  
+  .elicit-nav-links {
+    display: none;
+  }
+  
+  .nav-left {
+    gap: 1rem;
+  }
+}
