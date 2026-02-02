@@ -112,14 +112,23 @@ const Chat = () => {
       // Save assistant response to database
       await pdfAPI.saveChatMessage(metadataId, 'assistant', assistantMessage.content);
     } catch (error) {
+      console.error('Chat error:', error);
+      let errorText = 'Sorry, I encountered an error. Please try again.';
+      
+      if (error.response?.data?.detail) {
+        // Handle both string and array of error objects
+        const detail = error.response.data.detail;
+        errorText = typeof detail === 'string' ? detail : JSON.stringify(detail);
+      }
+      
       const errorMessage = {
         role: 'assistant',
-        content: error.response?.data?.detail || 'Sorry, I encountered an error. Please try again.'
+        content: errorText
       };
       setMessages(prev => [...prev, errorMessage]);
       
-      // Save error message to database
-      await pdfAPI.saveChatMessage(metadataId, 'assistant', errorMessage.content);
+      // Don't save error messages to avoid further errors
+      // await pdfAPI.saveChatMessage(metadataId, 'assistant', errorMessage.content);
     } finally {
       setIsLoading(false);
     }

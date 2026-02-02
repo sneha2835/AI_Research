@@ -4,7 +4,7 @@ import { pdfAPI, papersAPI } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import ArxivSearch from './ArxivSearch';
 import RecentPapers from './RecentPapers';
-import PaperDetail from './PaperDetail';
+import PaperDetails from './PaperDetails';
 import './common.css';
 import './Dashboard.css';
 
@@ -32,9 +32,10 @@ const Dashboard = () => {
   const fetchFiles = async () => {
     try {
       const response = await pdfAPI.getMyUploads();
-      setFiles(response.data.files);
+      setFiles(response.data.documents || []);
     } catch (error) {
       console.error('Failed to fetch files:', error);
+      setFiles([]);
     } finally {
       setIsLoading(false);
     }
@@ -202,13 +203,19 @@ const Dashboard = () => {
               <span className="user-name">{user?.name || 'Guest'}</span>
             </div>
           </div>
+          <button onClick={() => navigate('/admin/users')} className="btn-admin" title="User Management">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path d="M10 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2 18a8 8 0 0 1 16 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Users
+          </button>
           <button onClick={logout} className="btn-logout">Logout</button>
         </div>
       </nav>
 
       <div className="dashboard-content">
         {showPaperDetail && selectedPaper ? (
-          <PaperDetail
+          <PaperDetails
             paperId={selectedPaper._id}
             onBack={handleBackFromPaper}
             onProcess={handleProcessPaper}
@@ -259,15 +266,15 @@ const Dashboard = () => {
               <aside className="hero-sidecard">
                 <h3>Quick highlights</h3>
                 <ul>
-                  <li>
+                  <li key="pdfs-count">
                     <strong>{stats.count}</strong>
                     <span>PDFs in your workspace</span>
                   </li>
-                  <li>
+                  <li key="arxiv-count">
                     <strong>{arxivPapersCount}</strong>
                     <span>arXiv papers processed</span>
                   </li>
-                  <li>
+                  <li key="storage-size">
                     <strong>{stats.count ? stats.totalSizeMB.toFixed(2) : '0.00'} MB</strong>
                     <span>Total storage used</span>
                   </li>

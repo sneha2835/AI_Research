@@ -21,7 +21,7 @@ const UserManagement = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:8000/users', {
+      const response = await fetch('http://localhost:8001/users', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -56,7 +56,7 @@ const UserManagement = () => {
     e.preventDefault();
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8000/users/${editingUser._id}`, {
+      const response = await fetch(`http://localhost:8001/users/${editingUser._id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -86,7 +86,7 @@ const UserManagement = () => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8000/users/${userId}`, {
+      const response = await fetch(`http://localhost:8001/users/${userId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -132,8 +132,27 @@ const UserManagement = () => {
   return (
     <div className="user-management">
       <div className="user-management-header">
-        <h1>User Management</h1>
-        <p className="user-count">Total Users: {users.length}</p>
+        <div className="header-left">
+          <button onClick={() => window.location.href = '/dashboard'} className="btn-back">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path d="M12.5 15l-5-5 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Back to Dashboard
+          </button>
+          <div className="header-title">
+            <h1>User Management</h1>
+            <p className="subtitle">Manage system users and permissions</p>
+          </div>
+        </div>
+        <div className="header-stats">
+          <div className="stat-card">
+            <div className="stat-icon">👥</div>
+            <div className="stat-info">
+              <p className="stat-label">Total Users</p>
+              <p className="stat-value">{users.length}</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Edit User Form */}

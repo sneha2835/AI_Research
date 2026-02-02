@@ -6,6 +6,7 @@ import Login from './components/Login';
 import Register from './components/Register';
 import Dashboard from './components/Dashboard';
 import Chat from './components/Chat';
+import UserManagement from './components/UserManagement';
 import './App.css';
 
 const PrivateRoute = ({ children }) => {
@@ -61,6 +62,14 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <Chat />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/users"
+        element={
+          <PrivateRoute>
+            <UserManagement />
           </PrivateRoute>
         }
       />
