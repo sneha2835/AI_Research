@@ -50,8 +50,12 @@ async def extract_and_index_pdf(document: dict):
         if page_text:
             full_text += page_text + "\n"
 
+    # ❌ Extraction failed → mark explicitly
     if not full_text.strip():
-        # Do not mark indexed if extraction failed
+        await db.documents.update_one(
+            {"_id": document["_id"]},
+            {"$set": {"index_failed": True}},
+        )
         return
 
     # --------------------------------------------------

@@ -117,7 +117,7 @@ async def get_paper_details(
     return paper
 
 # ==================================================
-# 🧠 Analyze / process arXiv paper
+# 🧠 Analyze / process arXiv paper (FIXED)
 # ==================================================
 
 @papers_router.post("/analyze/{paper_id}")
@@ -134,69 +134,68 @@ async def analyze_arxiv_paper(
 
     document = await get_or_create_arxiv_document(paper)
 
-    if not document.get("indexed"):
+    # 🔒 ATOMIC LOCK: prevent double indexing
+    locked = await db.documents.find_one_and_update(
+        {
+            "_id": document["_id"],
+            "indexed": False,
+            "processing": False,
+        },
+        {"$set": {"processing": True}},
+        return_document=True,
+    )
+
+    # Another request is already processing or indexed
+    if not locked:
+        return {"document_id": str(document["_id"])}
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(paper["pdf_url"]) as resp:
+                if resp.status != 200:
+                    raise HTTPException(500, "Failed to download PDF")
+                pdf_bytes = await resp.read()
+
+        pdf_path = os.path.join(UPLOAD_DIR, f"{document['_id']}.pdf")
+        with open(pdf_path, "wb") as f:
+            f.write(pdf_bytes)
 
         await db.documents.update_one(
             {"_id": document["_id"]},
-            {"$set": {"processing": True}}
+            {"$set": {"path": pdf_path}},
         )
 
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(paper["pdf_url"]) as resp:
-                    if resp.status != 200:
-                        raise HTTPException(500, "Failed to download PDF")
-                    pdf_bytes = await resp.read()
-
-            pdf_path = os.path.join(UPLOAD_DIR, f"{document['_id']}.pdf")
-            with open(pdf_path, "wb") as f:
-                f.write(pdf_bytes)
-
-            await db.documents.update_one(
-                {"_id": document["_id"]},
-                {"$set": {"path": pdf_path}}
-            )
-
-        except Exception as e:
-            await db.documents.update_one(
-                {"_id": document["_id"]},
-                {"$set": {"processing": False}}
-            )
-            raise HTTPException(500, f"Download failed: {str(e)}")
-
-        document = await db.documents.find_one({"_id": document["_id"]})
         document["path"] = pdf_path
 
-        try:
-            await extract_and_index_pdf(document)
+        await extract_and_index_pdf(document)
 
-            await db.documents.update_one(
-                {"_id": document["_id"]},
-                {"$set": {"ready_for_chat": True}}
-            )
+        await db.documents.update_one(
+            {"_id": document["_id"]},
+            {"$set": {"ready_for_chat": True}},
+        )
 
-            exists = await db.chat_history.find_one({
+        exists = await db.chat_history.find_one({
+            "document_id": document["_id"],
+            "user_id": current_user["_id"],
+            "type": "system",
+        })
+
+        if not exists:
+            await db.chat_history.insert_one({
                 "document_id": document["_id"],
                 "user_id": current_user["_id"],
+                "role": "assistant",
                 "type": "system",
+                "content": "This paper is now ready for Q&A and summarization.",
+                "source": "arxiv",
+                "timestamp": datetime.utcnow(),
             })
 
-            if not exists:
-                await db.chat_history.insert_one({
-                    "document_id": document["_id"],
-                    "user_id": current_user["_id"],
-                    "role": "assistant",
-                    "type": "system",
-                    "content": "This paper is now ready for Q&A and summarization.",
-                    "source": "arxiv",
-                    "timestamp": datetime.utcnow(),
-                })
-
-        finally:
-            await db.documents.update_one(
-                {"_id": document["_id"]},
-                {"$set": {"processing": False}}
-            )
+    finally:
+        await db.documents.update_one(
+            {"_id": document["_id"]},
+            {"$set": {"processing": False}},
+        )
 
     await db.recent_views.update_one(
         {
@@ -224,6 +223,10 @@ async def process_arxiv_paper(
     current_user=Depends(get_current_user),
 ):
     return await analyze_arxiv_paper(paper_id, current_user)
+
+# ==================================================
+# 🕘 Recently viewed
+# ==================================================
 
 @papers_router.get("/recently-viewed")
 async def get_recently_viewed(

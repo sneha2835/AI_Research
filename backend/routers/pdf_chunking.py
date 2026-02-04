@@ -105,7 +105,6 @@ async def upload_pdf(
         "status": "uploaded",
     }
 
-
 # ==================================================
 # 📂 List user uploads
 # ==================================================
@@ -182,8 +181,14 @@ async def ask_pdf(
     if not document:
         raise HTTPException(404, "Document not found")
 
-    source = "arxiv" if document.get("source") == "arxiv" else "upload"
+    # ⛔ Prevent Q&A while indexing
+    if document.get("processing") or not document.get("ready_for_chat"):
+        raise HTTPException(
+            status_code=409,
+            detail="Document is still being processed. Please wait."
+        )
 
+    source = "arxiv" if document.get("source") == "arxiv" else "upload"
     owner = document.get("owner")
 
     chunks = semantic_search(
@@ -192,8 +197,7 @@ async def ask_pdf(
         n_results=payload.n_results,
         user_id=str(owner) if owner else None,
         section_priority=True,
-)
-
+    )
 
     valid_chunks = [
         c for c in chunks
@@ -223,7 +227,6 @@ Answer:
 
     timestamp = datetime.utcnow()
 
-    # ✅ SINGLE, AUTHORITATIVE CHAT SAVE
     await db.chat_history.insert_many([
         {
             "document_id": ObjectId(payload.document_id),
@@ -270,6 +273,13 @@ async def summarize_pdf(
     if not document:
         raise HTTPException(404, "Document not found")
 
+    # ⛔ Prevent summary while indexing
+    if document.get("processing") or not document.get("ready_for_chat"):
+        raise HTTPException(
+            status_code=409,
+            detail="Document is still being processed. Please wait."
+        )
+
     owner = document.get("owner")
 
     chunks = semantic_search(
@@ -279,7 +289,6 @@ async def summarize_pdf(
         user_id=str(owner) if owner else None,
         section_priority=True,
     )
-
 
     valid_chunks = [
         c for c in chunks
@@ -308,7 +317,6 @@ Text:
 
         summary = summarize_text(prompt) or "Summary generation failed."
 
-    # ✅ SINGLE SAVE (summary only)
     await db.chat_history.insert_one({
         "document_id": ObjectId(payload.document_id),
         "user_id": current_user["_id"],

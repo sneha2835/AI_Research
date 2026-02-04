@@ -102,8 +102,11 @@ pdf_vector_store = Chroma(
     embedding_function=_embedder,
 )
 
+# 🔑 Constant owner for shared (arXiv) documents
+GLOBAL_OWNER = "GLOBAL"
 
-def add_chunks_to_chroma(chunks, doc_id: str, user_id=None):
+
+def add_chunks_to_chroma(chunks, doc_id: str):
     """
     Stores PDF chunks with STRICT metadata normalization.
     """
@@ -131,11 +134,13 @@ def add_chunks_to_chroma(chunks, doc_id: str, user_id=None):
             # Hard safety: never index without document linkage
             continue
 
+        owner = metadata.get("user_id") or GLOBAL_OWNER
+
         texts.append(content)
 
         metadatas.append({
             "metadata_id": str(metadata_id),
-            "user_id": str(metadata.get("user_id")) if metadata.get("user_id") else None,
+            "user_id": str(owner),
             "section": metadata.get("section") or "body",
         })
 
@@ -164,9 +169,10 @@ def semantic_search(
 
     if metadata_id:
         filters.append({"metadata_id": str(metadata_id)})
-    if user_id is not None:   # <-- IMPORTANT FIX
-        filters.append({"user_id": str(user_id)})
 
+    # 🔑 Deterministic owner filtering
+    owner_filter = user_id if user_id is not None else GLOBAL_OWNER
+    filters.append({"user_id": str(owner_filter)})
 
     # --------------------------------------------------
     # Priority search: abstract + introduction
@@ -176,28 +182,25 @@ def semantic_search(
             {"section": {"$in": ["abstract", "introduction"]}}
         ]
 
-        if priority_filters:
-            priority_filter = (
-                priority_filters[0]
-                if len(priority_filters) == 1
-                else {"$and": priority_filters}
-            )
+        priority_filter = (
+            priority_filters[0]
+            if len(priority_filters) == 1
+            else {"$and": priority_filters}
+        )
 
-            results = pdf_vector_store.similarity_search_with_score(
-                query=query,
-                k=n_results,
-                filter=priority_filter,
-            )
+        results = pdf_vector_store.similarity_search_with_score(
+            query=query,
+            k=n_results,
+            filter=priority_filter,
+        )
 
-            if len(results) >= n_results:
-                return [doc for doc, _ in results]
+        if len(results) >= n_results:
+            return [doc for doc, _ in results]
 
     # --------------------------------------------------
     # Normal search fallback
     # --------------------------------------------------
-    combined_filter = None
-    if filters:
-        combined_filter = filters[0] if len(filters) == 1 else {"$and": filters}
+    combined_filter = filters[0] if len(filters) == 1 else {"$and": filters}
 
     results = pdf_vector_store.similarity_search_with_score(
         query=query,
