@@ -1,5 +1,3 @@
-# backend/app/auth.py
-
 from datetime import datetime, timedelta
 from typing import Optional, Dict
 
@@ -15,7 +13,6 @@ from backend.app.db import db
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
 
-
 # -------------------------
 # Password helpers
 # -------------------------
@@ -28,7 +25,6 @@ def get_password_hash(password: str) -> str:
     if len(password) < 8:
         raise ValueError("Password must be at least 8 characters long")
     return pwd_context.hash(password)
-
 
 # -------------------------
 # JWT helpers
@@ -43,18 +39,25 @@ def create_access_token(
     now = datetime.utcnow()
     payload = {
         "sub": email,
-        "uid": user_id,  # stored as string
+        "uid": user_id,
         "iat": now,
         "exp": now + (expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)),
         "type": "access",
     }
 
-    return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
+    return jwt.encode(
+        payload,
+        settings.JWT_SECRET,
+        algorithm=settings.JWT_ALGORITHM,
+    )
 
 
 def decode_access_token(token: str) -> dict:
-    return jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
-
+    return jwt.decode(
+        token,
+        settings.JWT_SECRET,
+        algorithms=[settings.JWT_ALGORITHM],
+    )
 
 # -------------------------
 # Current user dependency
@@ -71,13 +74,10 @@ async def get_current_user(
 
     try:
         payload = decode_access_token(token.credentials)
-        email: str | None = payload.get("sub")
-        uid: str | None = payload.get("uid")
+        email = payload.get("sub")
+        uid = payload.get("uid")
 
-        if not email or not uid:
-            raise credentials_exception
-
-        if not ObjectId.is_valid(uid):
+        if not email or not uid or not ObjectId.is_valid(uid):
             raise credentials_exception
 
         user_id = ObjectId(uid)

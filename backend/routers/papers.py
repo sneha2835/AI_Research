@@ -1,5 +1,3 @@
-import aiohttp
-import os
 from datetime import datetime
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -10,14 +8,16 @@ from backend.app.chroma_store import search_research_papers
 from backend.services.document_service import get_or_create_arxiv_document
 from backend.services.pdf_service import extract_and_index_pdf
 
-UPLOAD_DIR = "backend/pdf_uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+import aiohttp
+import os
 
 papers_router = APIRouter(prefix="/papers", tags=["Papers"])
 
+UPLOAD_DIR = "backend/pdf_uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # ==================================================
-# 📌 Recent arXiv papers
+# 🔥 Recent arXiv papers (Dashboard)
 # ==================================================
 
 @papers_router.get("/recent")
@@ -26,7 +26,13 @@ async def get_recent_papers(
     current_user=Depends(get_current_user),
 ):
     papers = await db.research_papers.find(
-        {}, {"title": 1, "abstract": 1, "published": 1, "pdf_url": 1}
+        {},
+        {
+            "title": 1,
+            "abstract": 1,
+            "published": 1,
+            "pdf_url": 1,
+        },
     ).sort("published", -1).limit(limit).to_list(limit)
 
     for p in papers:
@@ -36,7 +42,7 @@ async def get_recent_papers(
 
 
 # ==================================================
-# 🔍 Semantic search over abstracts
+# 🔍 Semantic search over arXiv abstracts
 # ==================================================
 
 @papers_router.get("/search")
@@ -45,14 +51,19 @@ async def search_papers(
     limit: int = Query(5, ge=3, le=15),
     current_user=Depends(get_current_user),
 ):
+    """
+    Semantic search ONLY over arXiv abstracts.
+    This does NOT touch full PDFs.
+    """
+
     try:
         results = search_research_papers(q, limit)
-    except Exception as e:
-        # If ChromaDB search fails, return empty results
-        print(f"ChromaDB search error: {e}")
+    except Exception:
+        # Chroma failure should never crash UX
         return []
 
-    paper_ids = []
+    paper_ids: list[ObjectId] = []
+
     for r in results:
         meta = r.metadata or {}
         pid = meta.get("paper_id")
@@ -81,6 +92,11 @@ async def analyze_arxiv_paper(
     paper_id: str,
     current_user=Depends(get_current_user),
 ):
+    """
+    Converts an arXiv paper into a document.
+    After this step, arXiv == uploaded PDF.
+    """
+
     if not ObjectId.is_valid(paper_id):
         raise HTTPException(400, "Invalid paper id")
 
@@ -88,34 +104,34 @@ async def analyze_arxiv_paper(
     if not paper:
         raise HTTPException(404, "Paper not found")
 
+    # 🔑 Get or create unified document
     document = await get_or_create_arxiv_document(paper)
 
+    # ==================================================
+    # 📥 Download + index PDF (only once)
+    # ==================================================
     if not document.get("indexed"):
         async with aiohttp.ClientSession() as session:
             async with session.get(paper["pdf_url"]) as resp:
                 if resp.status != 200:
-                    raise HTTPException(500, "PDF download failed")
-                data = await resp.read()
+                    raise HTTPException(500, "Failed to download PDF")
+                pdf_bytes = await resp.read()
 
-        path = os.path.join(UPLOAD_DIR, f"{document['_id']}.pdf")
-        with open(path, "wb") as f:
-            f.write(data)
+        pdf_path = os.path.join(UPLOAD_DIR, f"{document['_id']}.pdf")
+        with open(pdf_path, "wb") as f:
+            f.write(pdf_bytes)
 
         await db.documents.update_one(
             {"_id": document["_id"]},
-            {"$set": {"path": path}}
+            {"$set": {"path": pdf_path}},
         )
 
-        document["path"] = path
+        document["path"] = pdf_path
         await extract_and_index_pdf(document)
 
-    else:
-        if not document.get("path"):
-            raise HTTPException(500, "Indexed document missing PDF path")
-
-
-
-    # ✅ CONSISTENT recent view logging
+    # ==================================================
+    # 🕘 Log recent view (arXiv)
+    # ==================================================
     await db.recent_views.update_one(
         {
             "user_id": current_user["_id"],
@@ -135,13 +151,12 @@ async def analyze_arxiv_paper(
     )
 
     return {
-        "document_id": str(document["_id"])
+        "document_id": str(document["_id"]),
     }
 
 
-
 # ==================================================
-# 🔁 Alias for frontend compatibility
+# 🔁 Alias (frontend compatibility)
 # ==================================================
 
 @papers_router.post("/process/{paper_id}")
@@ -153,7 +168,7 @@ async def process_arxiv_paper(
 
 
 # ==================================================
-# 🕘 Recently viewed (mixed)
+# 🕘 Recently viewed (mixed list)
 # ==================================================
 
 @papers_router.get("/recently-viewed")
@@ -169,12 +184,12 @@ async def get_recently_viewed(
 
     for v in views:
         item = {
-            "type": v.get("type", "arxiv"),
+            "type": v.get("type"),
             "title": v.get("title"),
             "viewed_at": v.get("viewed_at"),
         }
 
-        if v["type"] == "arxiv":
+        if v.get("type") == "arxiv":
             item.update({
                 "_id": v.get("paper_id"),
                 "abstract": v.get("abstract"),
@@ -189,39 +204,3 @@ async def get_recently_viewed(
         results.append(item)
 
     return results
-
-# ==================================================
-# 📄 Paper details + view log
-# ==================================================
-
-@papers_router.get("/{paper_id}")
-async def get_paper_details(
-    paper_id: str,
-    current_user=Depends(get_current_user),
-):
-    if not ObjectId.is_valid(paper_id):
-        raise HTTPException(400, "Invalid paper id")
-
-    paper = await db.research_papers.find_one({"_id": ObjectId(paper_id)})
-    if not paper:
-        raise HTTPException(404, "Paper not found")
-
-    await db.recent_views.update_one(
-        {
-            "user_id": current_user["_id"],
-            "type": "arxiv",
-            "paper_id": paper_id,
-        },
-        {
-            "$set": {
-                "title": paper["title"],
-                "abstract": paper.get("abstract"),
-                "published": paper.get("published"),
-                "viewed_at": datetime.utcnow(),
-            }
-        },
-        upsert=True,
-    )
-
-    paper["_id"] = str(paper["_id"])
-    return paper

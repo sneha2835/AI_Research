@@ -1,26 +1,25 @@
-# backend/app/chroma_store.py
-
+import os
 from dotenv import load_dotenv
 load_dotenv()
 
-import os
 import chromadb
 from sentence_transformers import SentenceTransformer
 from langchain_chroma import Chroma
+
 from backend.app.config import settings
 
-# --------------------------------------------------
-# Ensure directory exists (force-create)
-# --------------------------------------------------
+# ==================================================
+# 📁 Persistent directory
+# ==================================================
 
 PERSIST_DIR = settings.CHROMA_PERSIST_DIR
 os.makedirs(PERSIST_DIR, exist_ok=True)
 
-print("🔥 Chroma persist directory:", PERSIST_DIR)
+print("🔥 Chroma persist directory:", os.path.abspath(PERSIST_DIR))
 
-# --------------------------------------------------
-# Embedding model
-# --------------------------------------------------
+# ==================================================
+# 🔤 Embedding model
+# ==================================================
 
 _embedding_model = SentenceTransformer(settings.SENTENCE_EMBED_MODEL)
 
@@ -46,17 +45,15 @@ class SentenceTransformerEmbedder:
 
 _embedder = SentenceTransformerEmbedder(_embedding_model)
 
-# --------------------------------------------------
-# 🔥 Persistent Chroma client (THIS IS THE FIX)
-# --------------------------------------------------
+# ==================================================
+# 🧠 Persistent Chroma client
+# ==================================================
 
-client = chromadb.PersistentClient(
-    path=PERSIST_DIR,
-)
+client = chromadb.PersistentClient(path=PERSIST_DIR)
 
-# --------------------------------------------------
-# Research papers (arXiv)
-# --------------------------------------------------
+# ==================================================
+# 📚 arXiv abstracts (global search)
+# ==================================================
 
 research_vector_store = Chroma(
     collection_name="research_papers",
@@ -74,15 +71,15 @@ def add_research_abstracts(abstracts, metadatas, ids):
         ids=ids,
     )
 
-def search_research_papers(query, n_results=5):
+def search_research_papers(query: str, n_results: int = 5):
     return research_vector_store.similarity_search(
         query=query,
         k=min(n_results, 15),
     )
 
-# --------------------------------------------------
-# PDF chunks
-# --------------------------------------------------
+# ==================================================
+# 📄 PDF chunks (arXiv + uploads)
+# ==================================================
 
 pdf_vector_store = Chroma(
     collection_name="pdf_chunks",
@@ -90,34 +87,25 @@ pdf_vector_store = Chroma(
     embedding_function=_embedder,
 )
 
-def add_chunks_to_chroma(chunks, doc_id: str, user_id=None):
+def add_chunks_to_chroma(chunks, doc_id: str):
     if not settings.ENABLE_CHROMA or not chunks:
         return
 
     texts, metadatas, ids = [], [], []
 
     for i, c in enumerate(chunks):
-
-        # ✅ Document OR dict safety
-        if isinstance(c, dict):
-            content = c.get("page_content")
-            metadata = c.get("metadata", {})
-        else:
-            content = getattr(c, "page_content", None)
-            metadata = getattr(c, "metadata", {})
+        content = getattr(c, "page_content", None)
+        metadata = getattr(c, "metadata", {})
 
         if not content or not str(content).strip():
             continue
 
         texts.append(content)
-
-        # ✅ USE METADATA AS-IS (single source of truth)
         metadatas.append({
-            "metadata_id": metadata.get("metadata_id"),
+            "metadata_id": str(metadata.get("metadata_id")),
             "user_id": metadata.get("user_id"),
-            "section": metadata.get("section"),
+            "section": metadata.get("section", "body"),
         })
-
         ids.append(f"{doc_id}_{i}")
 
     if texts:
@@ -127,6 +115,9 @@ def add_chunks_to_chroma(chunks, doc_id: str, user_id=None):
             ids=ids,
         )
 
+# ==================================================
+# 🔍 Document-scoped semantic search
+# ==================================================
 
 def semantic_search(
     query,
@@ -135,47 +126,46 @@ def semantic_search(
     user_id=None,
     section_priority=False,
 ):
-    base_filters = []
+    """
+    Document-scoped semantic search.
+    """
+
+    # 🚫 Guard against empty query
+    if not query.strip():
+        return []
+
+    filters = {}
 
     if metadata_id:
-        base_filters.append({"metadata_id": str(metadata_id)})
+        filters["metadata_id"] = str(metadata_id)
+
     if user_id:
-        base_filters.append({"user_id": str(user_id)})
+        filters["user_id"] = str(user_id)
 
-    # --- PRIORITY SEARCH ---
+    # ==================================================
+    # 🔥 Priority search (abstract / intro)
+    # ==================================================
     if section_priority:
-        priority_conditions = base_filters + [
-            {"section": {"$in": ["abstract", "introduction"]}}
-        ]
+        priority_filters = filters.copy()
+        priority_filters["section"] = {"$in": ["abstract", "introduction"]}
 
-        if not priority_conditions:
-            prioritized_filter = None
-        elif len(priority_conditions) == 1:
-            prioritized_filter = priority_conditions[0]
-        else:
-            prioritized_filter = {"$and": priority_conditions}
-
-        prioritized_results = pdf_vector_store.similarity_search_with_score(
+        prioritized = pdf_vector_store.similarity_search_with_score(
             query=query,
             k=n_results,
-            filter=prioritized_filter,
+            filter=priority_filters if priority_filters else None,
         )
 
-        if len(prioritized_results) >= n_results:
-            return [doc for doc, _ in prioritized_results]
+        if len(prioritized) >= n_results:
+            return [doc for doc, _ in prioritized]
 
-    # --- NORMAL SEARCH ---
-    if not base_filters:
-        combined_filter = None
-    elif len(base_filters) == 1:
-        combined_filter = base_filters[0]
-    else:
-        combined_filter = {"$and": base_filters}
-
+    # ==================================================
+    # 🔁 Fallback search
+    # ==================================================
     results = pdf_vector_store.similarity_search_with_score(
         query=query,
         k=n_results,
-        filter=combined_filter,
+        filter=filters if filters else None,
     )
 
     return [doc for doc, _ in results]
+

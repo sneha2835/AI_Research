@@ -1,16 +1,21 @@
-# backend/app/llm_inference.py
-
 import threading
 from transformers import pipeline
 from backend.app.config import settings
+
+# ==================================================
+# 🔒 Thread-safe lazy loading
+# ==================================================
 
 _lock = threading.Lock()
 
 _qa_pipeline = None
 _summary_pipeline = None
 
+# ==================================================
+# 🧠 Loaders
+# ==================================================
 
-def _load_qa():
+def _load_qa_pipeline():
     global _qa_pipeline
     if _qa_pipeline is not None:
         return
@@ -23,15 +28,14 @@ def _load_qa():
             "text2text-generation",
             model=settings.HF_QA_MODEL,
             token=settings.HF_TOKEN,
-            max_new_tokens=180,
+            max_new_tokens=256,
             do_sample=False,
-            num_beams=1,
-            repetition_penalty=2.2,
-            no_repeat_ngram_size=4,
+            repetition_penalty=1.8,
+            no_repeat_ngram_size=3,
         )
 
 
-def _load_summary():
+def _load_summary_pipeline():
     global _summary_pipeline
     if _summary_pipeline is not None:
         return
@@ -44,39 +48,58 @@ def _load_summary():
             "summarization",
             model=settings.HF_SUMMARY_MODEL,
             token=settings.HF_TOKEN,
-            max_length=220,
-            min_length=90,
+            max_length=240,
+            min_length=80,
             do_sample=False,
-            repetition_penalty=2.5,
-            no_repeat_ngram_size=4,
+            repetition_penalty=2.0,
+            no_repeat_ngram_size=3,
         )
 
-
-# -------------------------
-# Public APIs
-# -------------------------
+# ==================================================
+# ❓ Question answering
+# ==================================================
 
 def answer_from_context(prompt: str) -> str:
-    _load_qa()
+    """
+    Expects a fully-formed prompt.
+    Backend does NOT add logic here.
+    """
 
-    if not prompt.strip():
+    if not prompt or not prompt.strip():
         return ""
 
-    result = _qa_pipeline(prompt, truncation=True)
+    _load_qa_pipeline()
+
+    try:
+        result = _qa_pipeline(prompt, truncation=True)
+    except Exception:
+        return ""
+
     if not result:
         return ""
 
-    return result[0]["generated_text"].strip()
+    return result[0].get("generated_text", "").strip()
 
+# ==================================================
+# 📝 Summarization
+# ==================================================
 
-def summarize_text(text: str) -> str:
-    _load_summary()
+def summarize_text(prompt: str) -> str:
+    """
+    Expects a structured summarization prompt.
+    """
 
-    if not text.strip():
+    if not prompt or not prompt.strip():
         return ""
 
-    result = _summary_pipeline(text, truncation=True)
+    _load_summary_pipeline()
+
+    try:
+        result = _summary_pipeline(prompt, truncation=True)
+    except Exception:
+        return ""
+
     if not result:
         return ""
 
-    return result[0]["summary_text"].strip()
+    return result[0].get("summary_text", "").strip()

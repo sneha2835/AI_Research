@@ -1,64 +1,78 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { pdfAPI, papersAPI } from '../services/api';
-import { useNavigate } from 'react-router-dom';
-import ArxivSearch from './ArxivSearch';
-import RecentPapers from './RecentPapers';
-import PaperDetail from './PaperDetails';
-import './common.css';
-import './Dashboard.css';
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import { pdfAPI, papersAPI } from "../services/api";
+
+import ArxivSearch from "./ArxivSearch";
+import RecentPapers from "./RecentPapers";
+
+import "./common.css";
+import "./Dashboard.css";
 
 const Dashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [files, setFiles] = useState([]);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadError, setUploadError] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
+
   const fileInputRef = useRef(null);
   const librarySectionRef = useRef(null);
-  const [searchDraft, setSearchDraft] = useState('');
-  const [libraryFilter, setLibraryFilter] = useState('');
-  
-  // New state for arXiv integration
-  const [selectedPaper, setSelectedPaper] = useState(null);
-  const [showPaperDetail, setShowPaperDetail] = useState(false);
-  const [processedPapers, setProcessedPapers] = useState([]);
 
+  const [files, setFiles] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+
+  const [searchDraft, setSearchDraft] = useState("");
+  const [libraryFilter, setLibraryFilter] = useState("");
+
+  // ==================================================
+  // 📥 Load uploaded PDFs
+  // ==================================================
   useEffect(() => {
-    fetchFiles();
+    loadUploads();
   }, []);
 
-  const fetchFiles = async () => {
+  const loadUploads = async () => {
     try {
-      const response = await pdfAPI.getMyUploads();
-      setFiles(response.data.documents || []);
-    } catch (error) {
-      console.error('Failed to fetch files:', error);
+      const res = await pdfAPI.getMyUploads();
+
+      const normalized = (res.data.documents || []).map((doc) => ({
+        document_id: doc._id,
+        title: doc.title,
+        source: doc.source,
+        size_bytes: doc.size_bytes || 0,
+        uploaded_at: doc.uploaded_at || doc.created_at,
+      }));
+
+      setFiles(normalized);
+    } catch (err) {
+      console.error("Failed to load uploads", err);
       setFiles([]);
     } finally {
       setIsLoading(false);
     }
   };
 
+  // ==================================================
+  // 📤 Upload PDF
+  // ==================================================
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.name.toLowerCase().endsWith('.pdf')) {
-      setUploadError('Only PDF files are supported');
+    if (!file.name.toLowerCase().endsWith(".pdf")) {
+      setUploadError("Only PDF files are supported");
       return;
     }
 
     setIsUploading(true);
-    setUploadError('');
+    setUploadError("");
 
     try {
       await pdfAPI.upload(file);
-      await fetchFiles();
-      e.target.value = '';
-    } catch (error) {
-      setUploadError(error.response?.data?.detail || 'Upload failed');
+      await loadUploads();
+      e.target.value = "";
+    } catch (err) {
+      setUploadError("Upload failed");
     } finally {
       setIsUploading(false);
     }
@@ -70,382 +84,206 @@ const Dashboard = () => {
     }
   };
 
-  const handleNavigateHome = () => {
-    navigate('/');
+  // ==================================================
+  // 🧠 Navigation
+  // ==================================================
+  const openChat = (document_id, title) => {
+    navigate(`/chat/${document_id}`, {
+      state: { title },
+    });
   };
 
-  const handleScrollToLibrary = () => {
-    librarySectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const analyzeArxivPaper = async (paperId) => {
+    const res = await papersAPI.analyzePaper(paperId);
+    openChat(res.data.document_id);
   };
 
-  const handleSearchSubmit = (event) => {
-    event.preventDefault();
+  // ==================================================
+  // 🔍 Library filtering
+  // ==================================================
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
     setLibraryFilter(searchDraft.trim());
   };
 
   const clearFilter = () => {
-    setLibraryFilter('');
-    setSearchDraft('');
+    setLibraryFilter("");
+    setSearchDraft("");
   };
 
-  const handleDelete = async (metadataId) => {
-    if (!confirm('Are you sure you want to delete this PDF?')) return;
+  const filteredFiles = useMemo(() => {
+    if (!libraryFilter) return files;
+    return files.filter((f) =>
+      f.title.toLowerCase().includes(libraryFilter.toLowerCase())
+    );
+  }, [files, libraryFilter]);
 
-    try {
-      await pdfAPI.deletePDF(metadataId);
-      await fetchFiles();
-    } catch (error) {
-      alert('Failed to delete file');
-    }
-  };
-
-  const handleChat = (metadataId, filename) => {
-    navigate(`/chat/${metadataId}`, { state: { filename } });
-  };
-
-  // New handler functions for arXiv integration
-  const handleSelectPaper = (paper) => {
-    setSelectedPaper(paper);
-    setShowPaperDetail(true);
-  };
-
-  const handleProcessPaper = async (result) => {
-    if (result.already_processed) {
-      alert('This paper has already been processed. Opening chat...');
-      navigate(`/chat/${result.metadata_id}`, {
-        state: { filename: result.filename }
-      });
-    } else {
-      alert(`Paper processed successfully! ${result.total_chunks} chunks created.`);
-      fetchFiles(); // Refresh file list
-      
-      // Add to processed papers list
-      setProcessedPapers(prev => [...prev, {
-        paperId: result.paperId,
-        metadata_id: result.metadata_id,
-        filename: result.filename
-      }]);
-    }
-  };
-
-  const handleBackFromPaper = () => {
-    setShowPaperDetail(false);
-    setSelectedPaper(null);
-  };
-
-  const handleOpenArxivPDF = (paper) => {
-    if (paper.pdf_url) {
-      window.open(paper.pdf_url, '_blank');
-    }
-  };
-
+  // ==================================================
+  // 📊 Stats
+  // ==================================================
   const stats = useMemo(() => {
-    const count = files.length;
-    const totalBytes = files.reduce((sum, file) => sum + (file.size_bytes || 0), 0);
-    const latestTimestamp = files.reduce((latest, file) => {
-      const nextTime = new Date(file.uploaded_at).getTime();
-      return Number.isNaN(nextTime) ? latest : Math.max(latest, nextTime);
-    }, 0);
-
+    const totalBytes = files.reduce((s, f) => s + f.size_bytes, 0);
     return {
-      count,
+      count: files.length,
       totalSizeMB: totalBytes / (1024 * 1024),
-      lastUploadedAt: latestTimestamp ? new Date(latestTimestamp) : null,
     };
   }, [files]);
 
-  const primaryName = useMemo(() => {
-    if (!user?.name) return 'Researcher';
-    return user.name.split(' ')[0];
-  }, [user?.name]);
-
   const userInitials = useMemo(() => {
-    if (!user?.name) return 'U';
+    if (!user?.name) return "U";
     return user.name
-      .split(' ')
-      .filter(Boolean)
-      .map((part) => part[0])
-      .join('')
+      .split(" ")
+      .map((p) => p[0])
+      .join("")
       .slice(0, 2)
       .toUpperCase();
   }, [user?.name]);
 
-  const filteredFiles = useMemo(() => {
-    if (!libraryFilter) {
-      return files;
-    }
-
-    const query = libraryFilter.toLowerCase();
-    return files.filter((file) => file.filename.toLowerCase().includes(query));
-  }, [files, libraryFilter]);
-
-  const recentUploads = useMemo(() => files.slice(0, 3), [files]);
-
-  // Calculate processed arXiv papers count
-  const arxivPapersCount = useMemo(() => {
-    return files.filter(file => file.source === 'arxiv').length;
-  }, [files]);
-
+  // ==================================================
+  // 🧱 UI
+  // ==================================================
   return (
     <div className="dashboard">
       <nav className="navbar">
         <div className="navbar-left">
-          <button type="button" className="navbar-title" onClick={handleNavigateHome}>
+          <button className="navbar-title" onClick={() => navigate("/")}>
             Research AI Companion
           </button>
-          <p className="navbar-subtitle">Organize your papers, uncover insights, and keep progress in sight.</p>
+          <p className="navbar-subtitle">
+            Discover papers. Ask questions. Get clarity.
+          </p>
         </div>
+
         <div className="navbar-right">
           <div className="user-chip">
             <span className="user-avatar">{userInitials}</span>
             <div className="user-meta">
               <span className="user-greeting">Welcome back</span>
-              <span className="user-name">{user?.name || 'Guest'}</span>
+              <span className="user-name">{user?.name}</span>
             </div>
           </div>
-          <button onClick={() => navigate('/admin/users')} className="btn-admin" title="User Management">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <path d="M10 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2 18a8 8 0 0 1 16 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            Users
+          <button onClick={logout} className="btn-logout">
+            Logout
           </button>
-          <button onClick={logout} className="btn-logout">Logout</button>
         </div>
       </nav>
 
       <div className="dashboard-content">
-        {showPaperDetail && selectedPaper ? (
-          <PaperDetails
-            paperId={selectedPaper._id}
-            onBack={handleBackFromPaper}
-            onProcess={handleProcessPaper}
-            onOpenPDF={handleOpenArxivPDF}
-          />
-        ) : (
-          <>
-            <section className="dashboard-hero">
-              <div className="hero-card">
-                <div className="hero-illustration" aria-hidden="true">
-                  <span role="img" aria-label="Researching">🔎</span>
-                </div>
-                <div className="hero-content">
-                  <span className="hero-eyebrow">Workspace companion</span>
-                  <h2>Follow your curiosity, {primaryName}</h2>
-                  <p>
-                    Jump from questions to insights with a unified library, smart summaries, and document chat.
-                    Search arXiv papers or upload your own PDFs.
-                  </p>
-                  <form className="hero-search" onSubmit={handleSearchSubmit}>
-                    <label htmlFor="dashboard-search" className="sr-only">Search library</label>
-                    <div className="search-input">
-                      <span aria-hidden="true">🔍</span>
-                      <input
-                        id="dashboard-search"
-                        type="text"
-                        value={searchDraft}
-                        onChange={(event) => setSearchDraft(event.target.value)}
-                        placeholder="Search your PDF library..."
-                      />
-                    </div>
-                    <button type="submit">Search</button>
-                  </form>
-                  <div className="hero-actions">
-                    <button type="button" onClick={triggerFilePicker} disabled={isUploading}>
-                      {isUploading ? 'Uploading…' : 'Upload a PDF'}
-                    </button>
-                    <button type="button" onClick={handleScrollToLibrary}>
-                      Browse library
-                    </button>
-                    <button type="button" onClick={() => document.querySelector('.arxiv-search-section')?.scrollIntoView({ behavior: 'smooth' })}>
-                      🔍 Search arXiv
-                    </button>
-                  </div>
-                </div>
-              </div>
+        {/* ================= HERO ================= */}
+        <section className="dashboard-hero">
+          <div className="hero-card">
+            <div className="hero-content">
+              <h2>Welcome back</h2>
+              <p>
+                Upload PDFs or explore arXiv papers and analyze them using AI.
+              </p>
 
-              <aside className="hero-sidecard">
-                <h3>Quick highlights</h3>
-                <ul>
-                  <li key="pdfs-count">
-                    <strong>{stats.count}</strong>
-                    <span>PDFs in your workspace</span>
-                  </li>
-                  <li key="arxiv-count">
-                    <strong>{arxivPapersCount}</strong>
-                    <span>arXiv papers processed</span>
-                  </li>
-                  <li key="storage-size">
-                    <strong>{stats.count ? stats.totalSizeMB.toFixed(2) : '0.00'} MB</strong>
-                    <span>Total storage used</span>
-                  </li>
-                </ul>
-                {recentUploads.length > 0 && (
-                  <div className="hero-recents">
-                    <span>Recent uploads</span>
-                    <ol>
-                      {recentUploads.map((file) => (
-                        <li key={file.metadata_id}>
-                          <button type="button" onClick={() => handleChat(file.metadata_id, file.filename)}>
-                            {file.filename}
-                          </button>
-                        </li>
-                      ))}
-                    </ol>
-                  </div>
-                )}
-                {processedPapers.length > 0 && (
-                  <div className="hero-recents">
-                    <span>Recent arXiv papers</span>
-                    <ol>
-                      {processedPapers.slice(0, 3).map((paper) => (
-                        <li key={paper.metadata_id}>
-                          <button type="button" onClick={() => handleChat(paper.metadata_id, paper.filename)}>
-                            {paper.filename}
-                          </button>
-                        </li>
-                      ))}
-                    </ol>
-                  </div>
-                )}
-              </aside>
-            </section>
-
-            <section className="insights-strip">
-              <article>
-                <h3>Workspace momentum</h3>
-                <p>Keep adding papers regularly to build richer conversations with the assistant.</p>
-              </article>
-              <article>
-                <h3>Organize with tags</h3>
-                <p>Coming soon: tag PDFs to group projects, labs, or literature reviews.</p>
-              </article>
-              <article>
-                <h3>Share conversations</h3>
-                <p>Invite collaborators to view chats and continue where you left off.</p>
-              </article>
-            </section>
-
-            <section className="arxiv-search-section" style={{ marginTop: '3rem' }}>
-              <div className="panel-card">
-                <div className="panel-heading">
-                  <div>
-                    <h2>🔍 Search arXiv Papers</h2>
-                    <p>Discover and analyze the latest AI/ML research papers from arXiv</p>
-                  </div>
-                </div>
-                <ArxivSearch
-                  onSelectPaper={handleSelectPaper}
-                  onProcessPaper={handleProcessPaper}
+              <form onSubmit={handleSearchSubmit} className="hero-search">
+                <input
+                  type="text"
+                  value={searchDraft}
+                  onChange={(e) => setSearchDraft(e.target.value)}
+                  placeholder="Search your library…"
                 />
+                <button type="submit">Search</button>
+              </form>
+
+              <div className="hero-actions">
+                <button onClick={triggerFilePicker} disabled={isUploading}>
+                  {isUploading ? "Uploading…" : "Upload PDF"}
+                </button>
+                <button
+                  onClick={() =>
+                    librarySectionRef.current?.scrollIntoView({
+                      behavior: "smooth",
+                    })
+                  }
+                >
+                  Browse library
+                </button>
               </div>
-            </section>
+            </div>
+          </div>
 
-            <section className="recent-papers-section" style={{ marginTop: '2rem' }}>
-              <RecentPapers
-                onSelectPaper={handleSelectPaper}
-                onProcessPaper={handleProcessPaper}
-              />
-            </section>
+          <aside className="hero-sidecard">
+            <h3>Workspace</h3>
+            <ul>
+              <li>
+                <strong>{stats.count}</strong>
+                <span>PDFs</span>
+              </li>
+              <li>
+                <strong>{stats.totalSizeMB.toFixed(2)} MB</strong>
+                <span>Storage</span>
+              </li>
+            </ul>
+          </aside>
+        </section>
 
-            <section className="workspace-grid">
-              <article className="upload-section panel-card">
-                <div className="panel-heading">
-                  <div>
-                    <h2>Upload PDF</h2>
-                    <p>Add new research papers to unlock AI-powered insights.</p>
+        {/* ================= ARXIV ================= */}
+        <section className="panel-card">
+          <h2>🔍 Search arXiv</h2>
+          <ArxivSearch onAnalyze={analyzeArxivPaper} />
+        </section>
+
+        <section className="panel-card">
+          <RecentPapers onAnalyze={analyzeArxivPaper} />
+        </section>
+
+        {/* ================= UPLOAD ================= */}
+        <section className="panel-card">
+          <h2>Upload PDF</h2>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf"
+            onChange={handleFileUpload}
+            hidden
+          />
+          <button onClick={triggerFilePicker} disabled={isUploading}>
+            Browse files
+          </button>
+          {uploadError && <p className="error-message">{uploadError}</p>}
+        </section>
+
+        {/* ================= LIBRARY ================= */}
+        <section
+          ref={librarySectionRef}
+          className="panel-card"
+          id="my-library"
+        >
+          <div className="panel-heading">
+            <h2>My Library</h2>
+            {libraryFilter && (
+              <button onClick={clearFilter}>Clear filter</button>
+            )}
+          </div>
+
+          {isLoading ? (
+            <p>Loading…</p>
+          ) : filteredFiles.length === 0 ? (
+            <p>No documents found.</p>
+          ) : (
+            <div className="files-grid">
+              {filteredFiles.map((file) => (
+                <div key={file.document_id} className="file-card">
+                  <h3>{file.title}</h3>
+                  <div className="file-meta">
+                    <span>
+                      {(file.size_bytes / 1024 / 1024).toFixed(2)} MB
+                    </span>
                   </div>
                   <button
-                    type="button"
-                    className="panel-upload"
-                    onClick={triggerFilePicker}
-                    disabled={isUploading}
+                    className="btn-chat"
+                    onClick={() => openChat(file.document_id, file.title)}
                   >
-                    {isUploading ? 'Uploading…' : 'Browse files'}
+                    Open chat
                   </button>
                 </div>
-                <div className="upload-dropzone">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".pdf"
-                    onChange={handleFileUpload}
-                    disabled={isUploading}
-                    id="file-upload"
-                    className="file-input"
-                  />
-                  <label htmlFor="file-upload" className={`file-label ${isUploading ? 'disabled' : ''}`}>
-                    <span className="file-label-icon">⬆️</span>
-                    <span className="file-label-text">
-                      {isUploading ? 'Uploading your document…' : 'Drag & drop or click to select a PDF'}
-                    </span>
-                  </label>
-                </div>
-                {uploadError && <div className="error-message">{uploadError}</div>}
-              </article>
-
-              <article ref={librarySectionRef} className="files-section panel-card" id="my-library">
-                <div className="panel-heading">
-                  <div>
-                    <h2>My library</h2>
-                    <p>Browse your uploaded PDFs, filtered by keywords or titles.</p>
-                  </div>
-                  {libraryFilter && (
-                    <button type="button" className="panel-clear" onClick={clearFilter}>
-                      Clear filter
-                    </button>
-                  )}
-                </div>
-                {isLoading ? (
-                  <p className="loading-state">Loading your library…</p>
-                ) : files.length === 0 ? (
-                  <p className="empty-state">
-                    No PDFs uploaded yet. Upload your first research paper or search arXiv to get started!
-                  </p>
-                ) : filteredFiles.length === 0 ? (
-                  <p className="empty-state">No matches found. Try a different search term.</p>
-                ) : (
-                  <div className="files-grid">
-                    {filteredFiles.map((file) => (
-                      <div key={file.metadata_id} className="file-card">
-                        <div className="file-card-header">
-                          <div className={`file-badge ${file.source === 'arxiv' ? 'arxiv' : 'upload'}`}>
-                            {file.source === 'arxiv' ? 'arXiv' : 'PDF'}
-                          </div>
-                          <button
-                            type="button"
-                            className="file-delete"
-                            onClick={() => handleDelete(file.metadata_id)}
-                          >
-                            Delete
-                          </button>
-                        </div>
-                        <h3 title={file.filename}>{file.filename}</h3>
-                        <div className="file-meta">
-                          <span>{(file.size_bytes / 1024 / 1024).toFixed(2)} MB</span>
-                          <span>Uploaded {new Date(file.uploaded_at).toLocaleDateString()}</span>
-                          {file.source === 'arxiv' && <span className="arxiv-tag">arXiv</span>}
-                        </div>
-                        <div className="file-actions">
-                          <button
-                            onClick={() => handleChat(file.metadata_id, file.filename)}
-                            className="btn-chat"
-                          >
-                            {file.source === 'arxiv' ? 'Analyze' : 'Open chat'}
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {libraryFilter && filteredFiles.length > 0 && (
-                  <p className="filter-note">
-                    Showing {filteredFiles.length} result{filteredFiles.length > 1 ? 's' : ''} for "{libraryFilter}".
-                  </p>
-                )}
-              </article>
-            </section>
-          </>
-        )}
+              ))}
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );
