@@ -4,7 +4,7 @@ import { pdfAPI, papersAPI } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import ArxivSearch from './ArxivSearch';
 import RecentPapers from './RecentPapers';
-import PaperDetail from './PaperDetail';
+import PaperDetail from './PaperDetails';
 import './common.css';
 import './Dashboard.css';
 
