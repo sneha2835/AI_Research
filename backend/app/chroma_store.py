@@ -15,8 +15,6 @@ from backend.app.config import settings
 PERSIST_DIR = settings.CHROMA_PERSIST_DIR
 os.makedirs(PERSIST_DIR, exist_ok=True)
 
-print("🔥 Chroma persist directory:", os.path.abspath(PERSIST_DIR))
-
 # ==================================================
 # 🔤 Embedding model
 # ==================================================
@@ -78,7 +76,7 @@ def search_research_papers(query: str, n_results: int = 5):
     )
 
 # ==================================================
-# 📄 PDF chunks (arXiv + uploads)
+# 📄 PDF chunks (uploads + arXiv)
 # ==================================================
 
 pdf_vector_store = Chroma(
@@ -95,7 +93,7 @@ def add_chunks_to_chroma(chunks, doc_id: str):
 
     for i, c in enumerate(chunks):
         content = getattr(c, "page_content", None)
-        metadata = getattr(c, "metadata", {})
+        metadata = getattr(c, "metadata", {}) or {}
 
         if not content or not str(content).strip():
             continue
@@ -120,18 +118,18 @@ def add_chunks_to_chroma(chunks, doc_id: str):
 # ==================================================
 
 def semantic_search(
-    query,
-    n_results=5,
-    metadata_id=None,
-    user_id=None,
-    section_priority=False,
+    query: str,
+    n_results: int = 5,
+    metadata_id: str | None = None,
+    user_id: str | None = None,
+    section_priority: bool = False,
 ):
     """
-    Document-scoped semantic search.
+    Semantic search scoped to a single document.
+    Used by BOTH uploads and arXiv papers.
     """
 
-    # 🚫 Guard against empty query
-    if not query.strip():
+    if not query or not query.strip():
         return []
 
     filters = {}
@@ -142,9 +140,9 @@ def semantic_search(
     if user_id:
         filters["user_id"] = str(user_id)
 
-    # ==================================================
-    # 🔥 Priority search (abstract / intro)
-    # ==================================================
+    # ----------------------------------------------
+    # 🔥 Priority search (abstract + introduction)
+    # ----------------------------------------------
     if section_priority:
         priority_filters = filters.copy()
         priority_filters["section"] = {"$in": ["abstract", "introduction"]}
@@ -152,15 +150,15 @@ def semantic_search(
         prioritized = pdf_vector_store.similarity_search_with_score(
             query=query,
             k=n_results,
-            filter=priority_filters if priority_filters else None,
+            filter=priority_filters,
         )
 
         if len(prioritized) >= n_results:
             return [doc for doc, _ in prioritized]
 
-    # ==================================================
-    # 🔁 Fallback search
-    # ==================================================
+    # ----------------------------------------------
+    # 🔁 Fallback search (entire document)
+    # ----------------------------------------------
     results = pdf_vector_store.similarity_search_with_score(
         query=query,
         k=n_results,
@@ -168,4 +166,3 @@ def semantic_search(
     )
 
     return [doc for doc, _ in results]
-

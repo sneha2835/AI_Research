@@ -20,15 +20,10 @@ api.interceptors.request.use((config) => {
 // ==================================================
 // 🔑 Auth APIs
 // ==================================================
-// frontend/src/services/api.js
 
 export const authAPI = {
   register: ({ name, email, password }) =>
-    api.post("/register", {
-      name,
-      email,
-      password,
-    }),
+    api.post("/register", { name, email, password }),
 
   login: ({ email, password }) => {
     const form = new URLSearchParams();
@@ -45,10 +40,10 @@ export const authAPI = {
   getCurrentUser: () => api.get("/users/me"),
 };
 
-
 // ==================================================
 // 📄 PDF APIs (Uploads + arXiv documents)
 // ==================================================
+
 export const pdfAPI = {
   upload: (file) => {
     const formData = new FormData();
@@ -66,20 +61,16 @@ export const pdfAPI = {
     }),
 
   summarize: (document_id) =>
-    api.post("/pdf/summarize", {
-      document_id,
-    }),
+    api.post("/pdf/summarize", { document_id }),
 
   deletePDF: (document_id) =>
     api.delete(`/pdf/delete/${document_id}`),
-
-  extractChunks: (document_id) =>
-    api.get(`/pdf/extract_chunks/${document_id}`),
 };
 
 // ==================================================
 // 📚 arXiv / Papers APIs
 // ==================================================
+
 export const papersAPI = {
   getRecent: (limit = 10) =>
     api.get("/papers/recent", { params: { limit } }),

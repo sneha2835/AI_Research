@@ -80,10 +80,79 @@ async def upload_pdf(
             "owner": current_user["_id"],
         })
 
+    # 🕘 Log recent view (upload)
+    await db.recent_views.update_one(
+        {
+            "user_id": current_user["_id"],
+            "type": "upload",
+            "document_id": document["_id"],
+        },
+        {
+            "$set": {
+                "title": document["title"],
+                "viewed_at": datetime.utcnow(),
+            }
+        },
+        upsert=True,
+    )
+
     return {
         "document_id": str(document["_id"]),
         "status": "uploaded",
     }
+
+# ==================================================
+# 📂 List user uploads
+# ==================================================
+
+@pdf_router.get("/my_uploads")
+async def get_my_uploads(current_user=Depends(get_current_user)):
+    docs = await db.documents.find(
+        {
+            "owner": current_user["_id"],
+            "source": "upload",
+        }
+    ).sort("created_at", -1).to_list(100)
+
+    for d in docs:
+        d["_id"] = str(d["_id"])
+
+    return docs
+
+# ==================================================
+# 🗑️ Delete uploaded PDF
+# ==================================================
+
+@pdf_router.delete("/delete/{document_id}")
+async def delete_pdf(
+    document_id: str,
+    current_user=Depends(get_current_user),
+):
+    if not ObjectId.is_valid(document_id):
+        raise HTTPException(400, "Invalid document id")
+
+    await db.documents.delete_one(
+        {
+            "_id": ObjectId(document_id),
+            "owner": current_user["_id"],
+        }
+    )
+
+    await db.chat_history.delete_many(
+        {
+            "document_id": ObjectId(document_id),
+            "user_id": current_user["_id"],
+        }
+    )
+
+    await db.recent_views.delete_many(
+        {
+            "document_id": ObjectId(document_id),
+            "user_id": current_user["_id"],
+        }
+    )
+
+    return {"status": "deleted"}
 
 # ==================================================
 # ❓ Ask PDF (Q&A)
@@ -110,12 +179,11 @@ async def ask_pdf(
 
     source = "arxiv" if document.get("source") == "arxiv" else "upload"
 
-    # 🔍 Retrieve chunks
     chunks = semantic_search(
         query=payload.query,
-        document_id=payload.document_id,
+        metadata_id=payload.document_id,
         n_results=payload.n_results,
-        user_id=document.get("owner") if source == "upload" else None,
+        user_id=document.get("owner"),
         section_priority=True,
     )
 
@@ -145,7 +213,6 @@ Answer:
 
         answer = answer_from_context(prompt) or "I couldn't generate an answer."
 
-    # 💾 Save chat history
     timestamp = datetime.utcnow()
 
     await db.chat_history.insert_many([
@@ -196,7 +263,7 @@ async def summarize_pdf(
 
     chunks = semantic_search(
         query="Summarize the main contributions of this paper",
-        document_id=payload.document_id,
+        metadata_id=payload.document_id,
         n_results=12,
         user_id=document.get("owner"),
         section_priority=True,
@@ -210,11 +277,11 @@ async def summarize_pdf(
     valid_chunks = deduplicate_chunks(valid_chunks, 10)
 
     if not valid_chunks:
-        return {"summary": "No readable content found."}
+        summary = "No readable content found."
+    else:
+        context = "\n\n".join(c.page_content for c in valid_chunks)[:4000]
 
-    context = "\n\n".join(c.page_content for c in valid_chunks)[:4000]
-
-    prompt = f"""
+        prompt = f"""
 Summarize the following academic paper using this structure:
 
 Objective:
@@ -227,7 +294,7 @@ Text:
 {context}
 """.strip()
 
-    summary = summarize_text(prompt)
+        summary = summarize_text(prompt) or "Summary generation failed."
 
     await db.chat_history.insert_one({
         "document_id": ObjectId(payload.document_id),

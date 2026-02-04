@@ -40,7 +40,6 @@ async def get_recent_papers(
 
     return papers
 
-
 # ==================================================
 # 🔍 Semantic search over arXiv abstracts
 # ==================================================
@@ -53,16 +52,15 @@ async def search_papers(
 ):
     """
     Semantic search ONLY over arXiv abstracts.
-    This does NOT touch full PDFs.
+    Does NOT touch full PDFs.
     """
 
     try:
         results = search_research_papers(q, limit)
     except Exception:
-        # Chroma failure should never crash UX
         return []
 
-    paper_ids: list[ObjectId] = []
+    paper_ids = []
 
     for r in results:
         meta = r.metadata or {}
@@ -82,6 +80,24 @@ async def search_papers(
 
     return papers
 
+# ==================================================
+# 📄 Paper details (CLICK → VIEW ABSTRACT)
+# ==================================================
+
+@papers_router.get("/{paper_id}")
+async def get_paper_details(
+    paper_id: str,
+    current_user=Depends(get_current_user),
+):
+    if not ObjectId.is_valid(paper_id):
+        raise HTTPException(400, "Invalid paper id")
+
+    paper = await db.research_papers.find_one({"_id": ObjectId(paper_id)})
+    if not paper:
+        raise HTTPException(404, "Paper not found")
+
+    paper["_id"] = str(paper["_id"])
+    return paper
 
 # ==================================================
 # 🧠 Analyze / process arXiv paper
@@ -110,6 +126,7 @@ async def analyze_arxiv_paper(
     # ==================================================
     # 📥 Download + index PDF (only once)
     # ==================================================
+
     if not document.get("indexed"):
         async with aiohttp.ClientSession() as session:
             async with session.get(paper["pdf_url"]) as resp:
@@ -132,6 +149,7 @@ async def analyze_arxiv_paper(
     # ==================================================
     # 🕘 Log recent view (arXiv)
     # ==================================================
+
     await db.recent_views.update_one(
         {
             "user_id": current_user["_id"],
@@ -143,7 +161,7 @@ async def analyze_arxiv_paper(
                 "title": paper["title"],
                 "abstract": paper.get("abstract"),
                 "published": paper.get("published"),
-                "document_id": ObjectId(document["_id"]),
+                "document_id": document["_id"],
                 "viewed_at": datetime.utcnow(),
             }
         },
@@ -153,7 +171,6 @@ async def analyze_arxiv_paper(
     return {
         "document_id": str(document["_id"]),
     }
-
 
 # ==================================================
 # 🔁 Alias (frontend compatibility)
@@ -165,7 +182,6 @@ async def process_arxiv_paper(
     current_user=Depends(get_current_user),
 ):
     return await analyze_arxiv_paper(paper_id, current_user)
-
 
 # ==================================================
 # 🕘 Recently viewed (mixed list)
