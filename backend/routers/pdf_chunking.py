@@ -400,20 +400,31 @@ Write a concise academic summary (3–5 sentences).
     # 🧩 FINAL MERGE SUMMARY
     # ==================================================
     final_prompt = f"""
-You are an expert academic summarizer.
+You are an expert academic researcher.
 
-Merge the following section summaries into a single coherent paper summary.
+Write a detailed, comprehensive summary of the research paper using the section summaries below.
 
-Format:
-Objective:
-Problem Statement:
-Methodology:
-Key Findings:
-Conclusion:
+Guidelines:
+- Write in clear academic English
+- Explain concepts instead of listing them
+- Include background context where relevant
+- Clearly explain the motivation, methodology, findings, and implications
+- Do NOT overly compress the content
+- Length: detailed, multi-paragraph summary (similar to ChatGPT-style paper summaries)
+
+Structure your response as:
+
+1. Background and Motivation
+2. Research Objective and Problem Statement
+3. Methodology
+4. Key Findings and Analysis
+5. Discussion and Implications
+6. Conclusion and Limitations
 
 Section Summaries:
 {section_summaries}
 """.strip()
+
 
     summary = summarize_text(final_prompt)
 

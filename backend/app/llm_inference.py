@@ -42,12 +42,12 @@ def _load_summary():
 
         _summary_pipeline = pipeline(
             "summarization",
-            model=settings.HF_SUMMARY_MODEL,
+            model=settings.HF_QA_MODEL,
             token=settings.HF_TOKEN,
-            max_length=220,
+            max_length=700,
             min_length=90,
             do_sample=False,
-            repetition_penalty=2.5,
+            repetition_penalty=2.0,
             no_repeat_ngram_size=4,
         )
 
@@ -76,7 +76,14 @@ def summarize_text(text: str) -> str:
         return ""
 
     result = _summary_pipeline(text, truncation=True)
-    if not result:
+    if not result or not isinstance(result, list):
         return ""
 
-    return result[0]["summary_text"].strip()
+    output = result[0]
+
+    # 🔥 ROBUST extraction (works for FLAN, T5, future models)
+    return (
+        output.get("generated_text")
+        or output.get("summary_text")
+        or ""
+    ).strip()
