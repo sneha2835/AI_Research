@@ -79,6 +79,12 @@ async def upload_pdf(
             "path": path,
             "owner": current_user["_id"],
         })
+        await db.documents.update_one(
+    {"_id": document["_id"]},
+    {"$set": {"ready_for_chat": True}}
+)
+
+
 
     # 🕘 Log recent view (upload)
     await db.recent_views.update_one(
@@ -265,13 +271,16 @@ async def summarize_pdf(
     if not document:
         raise HTTPException(404, "Document not found")
 
+    owner = document.get("owner")
+
     chunks = semantic_search(
         query="Summarize the main contributions of this paper",
         metadata_id=payload.document_id,
         n_results=12,
-        user_id=document.get("owner"),
+        user_id=str(owner) if owner else None,
         section_priority=True,
     )
+
 
     valid_chunks = [
         c for c in chunks

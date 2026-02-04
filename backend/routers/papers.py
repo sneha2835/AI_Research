@@ -153,7 +153,7 @@ async def analyze_arxiv_paper(
 
     if not document.get("indexed"):
 
-    # Mark as processing
+        # Mark as processing
         await db.documents.update_one(
             {"_id": document["_id"]},
             {"$set": {"processing": True}}
@@ -166,7 +166,7 @@ async def analyze_arxiv_paper(
                         raise HTTPException(500, "Failed to download PDF")
                     pdf_bytes = await resp.read()
 
-            # ✅ ---- YOU WERE MISSING THIS PART ----
+            # Save PDF locally
             pdf_path = os.path.join(UPLOAD_DIR, f"{document['_id']}.pdf")
             with open(pdf_path, "wb") as f:
                 f.write(pdf_bytes)
@@ -175,39 +175,46 @@ async def analyze_arxiv_paper(
                 {"_id": document["_id"]},
                 {"$set": {"path": pdf_path}}
             )
-            # ✅ -----------------------------------
 
         except Exception as e:
+            # Always clear processing on failure
             await db.documents.update_one(
                 {"_id": document["_id"]},
                 {"$set": {"processing": False}}
             )
             raise HTTPException(500, f"Download failed: {str(e)}")
 
-        # 🔄 Ensure fresh document state
+        # 🔄 Refresh document state
         document = await db.documents.find_one({"_id": document["_id"]})
         document["path"] = pdf_path
 
-        await extract_and_index_pdf(document)
+        try:
+            # Index the PDF
+            await extract_and_index_pdf(document)
 
-        # System message
-        await db.chat_history.insert_one({
-            "document_id": document["_id"],
-            "user_id": current_user["_id"],
-            "role": "assistant",
-            "type": "system",
-            "content": "This paper is now ready for Q&A and summarization.",
-            "source": "arxiv",
-            "timestamp": datetime.utcnow(),
-        })
+            # Mark ready for chat
+            await db.documents.update_one(
+                {"_id": document["_id"]},
+                {"$set": {"ready_for_chat": True}}
+            )
 
-        # Mark processing complete
-        await db.documents.update_one(
-            {"_id": document["_id"]},
-            {"$set": {"processing": False}}
-        )
+            # System message so chat screen isn't empty
+            await db.chat_history.insert_one({
+                "document_id": document["_id"],
+                "user_id": current_user["_id"],
+                "role": "assistant",
+                "type": "system",
+                "content": "This paper is now ready for Q&A and summarization.",
+                "source": "arxiv",
+                "timestamp": datetime.utcnow(),
+            })
 
-        
+        finally:
+            # Safety net — never leave stuck in "processing"
+            await db.documents.update_one(
+                {"_id": document["_id"]},
+                {"$set": {"processing": False}}
+            )
 
     # ==================================================
     # 🕘 Log recent view (post-analysis)
@@ -234,6 +241,7 @@ async def analyze_arxiv_paper(
     return {
         "document_id": str(document["_id"]),
     }
+
 
 # ==================================================
 # 🔁 Alias (frontend compatibility)
