@@ -40,8 +40,10 @@ async def get_or_create_arxiv_document(paper: dict) -> dict:
         "title": paper.get("title"),
         "external_id": external_id,
         "path": None,
-        "owner": None,          # 👈 shared
-        "indexed": False,       # 👈 required by pipeline
+        "owner": None,
+        "indexed": False,
+        "processing": False,      # NEW
+        "ready_for_chat": False,  # NEW
         "created_at": datetime.utcnow(),
     }
 

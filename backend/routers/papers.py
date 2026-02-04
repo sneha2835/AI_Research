@@ -152,26 +152,62 @@ async def analyze_arxiv_paper(
     # ==================================================
 
     if not document.get("indexed"):
-        async with aiohttp.ClientSession() as session:
-            async with session.get(paper["pdf_url"]) as resp:
-                if resp.status != 200:
-                    raise HTTPException(500, "Failed to download PDF")
-                pdf_bytes = await resp.read()
 
-        pdf_path = os.path.join(UPLOAD_DIR, f"{document['_id']}.pdf")
-        with open(pdf_path, "wb") as f:
-            f.write(pdf_bytes)
-
+    # Mark as processing
         await db.documents.update_one(
             {"_id": document["_id"]},
-            {"$set": {"path": pdf_path}},
+            {"$set": {"processing": True}}
         )
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(paper["pdf_url"]) as resp:
+                    if resp.status != 200:
+                        raise HTTPException(500, "Failed to download PDF")
+                    pdf_bytes = await resp.read()
+
+            # ✅ ---- YOU WERE MISSING THIS PART ----
+            pdf_path = os.path.join(UPLOAD_DIR, f"{document['_id']}.pdf")
+            with open(pdf_path, "wb") as f:
+                f.write(pdf_bytes)
+
+            await db.documents.update_one(
+                {"_id": document["_id"]},
+                {"$set": {"path": pdf_path}}
+            )
+            # ✅ -----------------------------------
+
+        except Exception as e:
+            await db.documents.update_one(
+                {"_id": document["_id"]},
+                {"$set": {"processing": False}}
+            )
+            raise HTTPException(500, f"Download failed: {str(e)}")
 
         # 🔄 Ensure fresh document state
         document = await db.documents.find_one({"_id": document["_id"]})
         document["path"] = pdf_path
 
         await extract_and_index_pdf(document)
+
+        # System message
+        await db.chat_history.insert_one({
+            "document_id": document["_id"],
+            "user_id": current_user["_id"],
+            "role": "assistant",
+            "type": "system",
+            "content": "This paper is now ready for Q&A and summarization.",
+            "source": "arxiv",
+            "timestamp": datetime.utcnow(),
+        })
+
+        # Mark processing complete
+        await db.documents.update_one(
+            {"_id": document["_id"]},
+            {"$set": {"processing": False}}
+        )
+
+        
 
     # ==================================================
     # 🕘 Log recent view (post-analysis)

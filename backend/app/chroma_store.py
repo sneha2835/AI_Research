@@ -164,8 +164,9 @@ def semantic_search(
 
     if metadata_id:
         filters.append({"metadata_id": str(metadata_id)})
-    if user_id:
+    if user_id is not None:   # <-- IMPORTANT FIX
         filters.append({"user_id": str(user_id)})
+
 
     # --------------------------------------------------
     # Priority search: abstract + introduction

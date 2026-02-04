@@ -179,13 +179,16 @@ async def ask_pdf(
 
     source = "arxiv" if document.get("source") == "arxiv" else "upload"
 
+    owner = document.get("owner")
+
     chunks = semantic_search(
         query=payload.query,
         metadata_id=payload.document_id,
         n_results=payload.n_results,
-        user_id=document.get("owner"),
+        user_id=str(owner) if owner else None,
         section_priority=True,
-    )
+)
+
 
     valid_chunks = [
         c for c in chunks

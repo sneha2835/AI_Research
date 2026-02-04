@@ -59,6 +59,11 @@ async def create_indexes():
         "indexed",
         name="documents_indexed_flag"
     )
+    await db.documents.create_index(
+        "ready_for_chat",
+        name="documents_ready_flag"
+    )
+
 
     # ==================================================
     # 📚 Research papers (arXiv metadata)
