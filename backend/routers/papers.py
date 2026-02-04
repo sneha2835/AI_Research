@@ -45,7 +45,12 @@ async def search_papers(
     limit: int = Query(5, ge=3, le=15),
     current_user=Depends(get_current_user),
 ):
-    results = search_research_papers(q, limit)
+    try:
+        results = search_research_papers(q, limit)
+    except Exception as e:
+        # If ChromaDB search fails, return empty results
+        print(f"ChromaDB search error: {e}")
+        return []
 
     paper_ids = []
     for r in results:

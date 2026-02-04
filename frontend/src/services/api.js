@@ -43,7 +43,7 @@ export const pdfAPI = {
   ask: (payload) => api.post('/pdf/ask', payload),
   askWithHistory: (metadata_id, query, conversationHistory = '', nResults = 5) =>
     api.post('/pdf/ask', { 
-      metadata_id, 
+      document_id: metadata_id, 
       query, 
       conversation_history: conversationHistory, 
       n_results: nResults 

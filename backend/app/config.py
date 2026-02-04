@@ -33,12 +33,26 @@ class Settings(BaseSettings):
     HF_TOKEN: str | None = None
 
     # --------------------
+    # Groq API
+    # --------------------
+    GROQ_API_KEY: str | None = None
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
+    LLM_TEMP: float = 0.3
+    LLM_MAX_TOKENS: int = 2048
+
+    # --------------------
+    # MongoDB (alias)
+    # --------------------
+    MONGO_URI: str | None = None
+
+    # --------------------
     # ENV config
     # --------------------
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
         case_sensitive = False
+        extra = "allow"
 
     # --------------------
     # FORCE BOOLEAN PARSING

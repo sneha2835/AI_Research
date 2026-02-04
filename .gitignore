@@ -53,9 +53,20 @@ grobid/
 !grobid/.gitkeep
 *.gguf
 
+# ChromaDB and MongoDB data directories
+chroma_persist/
+mongodb_data/
+*.wt
+*.bin
+
 # Backup and DB dump files
 *.bak
 dump.rdb
+
+# Generated batch/shell scripts
+start_backend.bat
+start_frontend.bat
+*.bat
 
 # Editor temp/swap files
 *.swp
