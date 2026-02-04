@@ -5,10 +5,6 @@ from backend.app.auth import get_current_user
 
 chat_router = APIRouter(prefix="/chat", tags=["Chat"])
 
-# ==================================================
-# 💬 Get chat history for a document
-# ==================================================
-
 @chat_router.get("/{document_id}")
 async def get_chat_history(
     document_id: str,
@@ -27,6 +23,13 @@ async def get_chat_history(
 
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
+
+    # ⛔ Prevent chat while indexing
+    if document.get("processing"):
+        raise HTTPException(
+            status_code=409,
+            detail="Document is still being processed. Try again in a moment."
+        )
 
     chats = await db.chat_history.find(
         {

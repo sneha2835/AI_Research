@@ -55,11 +55,6 @@ async def search_papers(
     limit: int = Query(5, ge=3, le=15),
     current_user=Depends(get_current_user),
 ):
-    """
-    Semantic search ONLY over arXiv abstracts.
-    Does NOT touch full PDFs.
-    """
-
     try:
         results = search_research_papers(q, limit)
     except Exception:
@@ -87,7 +82,6 @@ async def search_papers(
 
 # ==================================================
 # 📄 Paper details (VIEW ABSTRACT)
-# Logs recent view HERE (NOT analyze)
 # ==================================================
 
 @papers_router.get("/{paper_id}")
@@ -102,7 +96,6 @@ async def get_paper_details(
     if not paper:
         raise HTTPException(404, "Paper not found")
 
-    # 🔔 Log recent view on VIEW (flow step 4)
     await db.recent_views.update_one(
         {
             "user_id": current_user["_id"],
@@ -132,11 +125,6 @@ async def analyze_arxiv_paper(
     paper_id: str,
     current_user=Depends(get_current_user),
 ):
-    """
-    Converts an arXiv paper into a document.
-    After this step, arXiv == uploaded PDF.
-    """
-
     if not ObjectId.is_valid(paper_id):
         raise HTTPException(400, "Invalid paper id")
 
@@ -144,16 +132,10 @@ async def analyze_arxiv_paper(
     if not paper:
         raise HTTPException(404, "Paper not found")
 
-    # 🔑 Get or create unified document (shared)
     document = await get_or_create_arxiv_document(paper)
-
-    # ==================================================
-    # 📥 Download + index PDF (only once)
-    # ==================================================
 
     if not document.get("indexed"):
 
-        # Mark as processing
         await db.documents.update_one(
             {"_id": document["_id"]},
             {"$set": {"processing": True}}
@@ -166,7 +148,6 @@ async def analyze_arxiv_paper(
                         raise HTTPException(500, "Failed to download PDF")
                     pdf_bytes = await resp.read()
 
-            # Save PDF locally
             pdf_path = os.path.join(UPLOAD_DIR, f"{document['_id']}.pdf")
             with open(pdf_path, "wb") as f:
                 f.write(pdf_bytes)
@@ -177,48 +158,45 @@ async def analyze_arxiv_paper(
             )
 
         except Exception as e:
-            # Always clear processing on failure
             await db.documents.update_one(
                 {"_id": document["_id"]},
                 {"$set": {"processing": False}}
             )
             raise HTTPException(500, f"Download failed: {str(e)}")
 
-        # 🔄 Refresh document state
         document = await db.documents.find_one({"_id": document["_id"]})
         document["path"] = pdf_path
 
         try:
-            # Index the PDF
             await extract_and_index_pdf(document)
 
-            # Mark ready for chat
             await db.documents.update_one(
                 {"_id": document["_id"]},
                 {"$set": {"ready_for_chat": True}}
             )
 
-            # System message so chat screen isn't empty
-            await db.chat_history.insert_one({
+            exists = await db.chat_history.find_one({
                 "document_id": document["_id"],
                 "user_id": current_user["_id"],
-                "role": "assistant",
                 "type": "system",
-                "content": "This paper is now ready for Q&A and summarization.",
-                "source": "arxiv",
-                "timestamp": datetime.utcnow(),
             })
 
+            if not exists:
+                await db.chat_history.insert_one({
+                    "document_id": document["_id"],
+                    "user_id": current_user["_id"],
+                    "role": "assistant",
+                    "type": "system",
+                    "content": "This paper is now ready for Q&A and summarization.",
+                    "source": "arxiv",
+                    "timestamp": datetime.utcnow(),
+                })
+
         finally:
-            # Safety net — never leave stuck in "processing"
             await db.documents.update_one(
                 {"_id": document["_id"]},
                 {"$set": {"processing": False}}
             )
-
-    # ==================================================
-    # 🕘 Log recent view (post-analysis)
-    # ==================================================
 
     await db.recent_views.update_one(
         {
@@ -238,14 +216,7 @@ async def analyze_arxiv_paper(
         upsert=True,
     )
 
-    return {
-        "document_id": str(document["_id"]),
-    }
-
-
-# ==================================================
-# 🔁 Alias (frontend compatibility)
-# ==================================================
+    return {"document_id": str(document["_id"])}
 
 @papers_router.post("/process/{paper_id}")
 async def process_arxiv_paper(
@@ -254,19 +225,13 @@ async def process_arxiv_paper(
 ):
     return await analyze_arxiv_paper(paper_id, current_user)
 
-# ==================================================
-# 🕘 Recently viewed (mixed list)
-# ==================================================
-
 @papers_router.get("/recently-viewed")
 async def get_recently_viewed(
     limit: int = Query(10, ge=1, le=20),
     current_user=Depends(get_current_user),
 ):
     views = (
-        await db.recent_views.find(
-            {"user_id": current_user["_id"]}
-        )
+        await db.recent_views.find({"user_id": current_user["_id"]})
         .sort("viewed_at", -1)
         .limit(limit)
         .to_list(limit)

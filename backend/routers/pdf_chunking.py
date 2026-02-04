@@ -79,14 +79,12 @@ async def upload_pdf(
             "path": path,
             "owner": current_user["_id"],
         })
-        await db.documents.update_one(
-    {"_id": document["_id"]},
-    {"$set": {"ready_for_chat": True}}
-)
 
+    await db.documents.update_one(
+        {"_id": document["_id"]},
+        {"$set": {"ready_for_chat": True, "indexed": True}}
+    )
 
-
-    # 🕘 Log recent view (upload)
     await db.recent_views.update_one(
         {
             "user_id": current_user["_id"],
@@ -106,6 +104,7 @@ async def upload_pdf(
         "document_id": str(document["_id"]),
         "status": "uploaded",
     }
+
 
 # ==================================================
 # 📂 List user uploads
