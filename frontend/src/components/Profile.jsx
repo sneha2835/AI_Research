@@ -1,45 +1,50 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { authAPI } from '../services/api';
 import './Profile.css';
 
 const Profile = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  
+
   const [profile, setProfile] = useState({
     email: '',
-    username: ''
+    name: '',
   });
-  
+
   const [passwords, setPasswords] = useState({
     currentPassword: '',
     newPassword: '',
-    confirmPassword: ''
+    confirmPassword: '',
   });
-  
+
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
 
+  // ==================================================
+  // Sync user → local state
+  // ==================================================
   useEffect(() => {
     if (user) {
       setProfile({
         email: user.email || '',
-        username: user.username || user.email?.split('@')[0] || ''
+        name: user.name || '',
       });
     }
   }, [user]);
 
+  // ==================================================
+  // Handlers
+  // ==================================================
   const handleProfileChange = (e) => {
     const { name, value } = e.target;
-    setProfile(prev => ({ ...prev, [name]: value }));
+    setProfile((prev) => ({ ...prev, [name]: value }));
   };
 
   const handlePasswordChange = (e) => {
     const { name, value } = e.target;
-    setPasswords(prev => ({ ...prev, [name]: value }));
+    setPasswords((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleProfileSubmit = async (e) => {
@@ -48,17 +53,17 @@ const Profile = () => {
     setMessage({ type: '', text: '' });
 
     try {
-      // API call to update profile would go here
+      // 🔒 Backend update API can be wired later
       // await authAPI.updateProfile(profile);
-      
+
       setMessage({ type: 'success', text: 'Profile updated successfully!' });
       setIsEditing(false);
-      
+
       setTimeout(() => setMessage({ type: '', text: '' }), 3000);
     } catch (error) {
-      setMessage({ 
-        type: 'error', 
-        text: error.response?.data?.detail || 'Failed to update profile' 
+      setMessage({
+        type: 'error',
+        text: error.response?.data?.detail || 'Failed to update profile',
       });
     } finally {
       setIsSaving(false);
@@ -67,14 +72,17 @@ const Profile = () => {
 
   const handlePasswordSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (passwords.newPassword !== passwords.confirmPassword) {
       setMessage({ type: 'error', text: 'Passwords do not match' });
       return;
     }
 
     if (passwords.newPassword.length < 8) {
-      setMessage({ type: 'error', text: 'Password must be at least 8 characters' });
+      setMessage({
+        type: 'error',
+        text: 'Password must be at least 8 characters',
+      });
       return;
     }
 
@@ -82,17 +90,21 @@ const Profile = () => {
     setMessage({ type: '', text: '' });
 
     try {
-      // API call to change password would go here
+      // 🔒 Backend password change API can be wired later
       // await authAPI.changePassword(passwords);
-      
+
       setMessage({ type: 'success', text: 'Password changed successfully!' });
-      setPasswords({ currentPassword: '', newPassword: '', confirmPassword: '' });
-      
+      setPasswords({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      });
+
       setTimeout(() => setMessage({ type: '', text: '' }), 3000);
     } catch (error) {
-      setMessage({ 
-        type: 'error', 
-        text: error.response?.data?.detail || 'Failed to change password' 
+      setMessage({
+        type: 'error',
+        text: error.response?.data?.detail || 'Failed to change password',
       });
     } finally {
       setIsSaving(false);
@@ -100,12 +112,18 @@ const Profile = () => {
   };
 
   const handleDeleteAccount = () => {
-    if (window.confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
-      // API call to delete account
+    if (
+      window.confirm(
+        'Are you sure you want to delete your account? This action cannot be undone.'
+      )
+    ) {
       alert('Account deletion functionality coming soon');
     }
   };
 
+  // ==================================================
+  // Render
+  // ==================================================
   return (
     <div className="profile-container">
       {/* Header */}
@@ -118,13 +136,11 @@ const Profile = () => {
 
       {/* Message */}
       {message.text && (
-        <div className={`message ${message.type}`}>
-          {message.text}
-        </div>
+        <div className={`message ${message.type}`}>{message.text}</div>
       )}
 
       <div className="profile-content">
-        {/* Profile Information Card */}
+        {/* Profile Information */}
         <div className="settings-card">
           <div className="card-header">
             <h2>Profile Information</h2>
@@ -149,11 +165,11 @@ const Profile = () => {
             </div>
 
             <div className="form-group">
-              <label>Username</label>
+              <label>Full Name</label>
               <input
                 type="text"
-                name="username"
-                value={profile.username}
+                name="name"
+                value={profile.name}
                 onChange={handleProfileChange}
                 disabled={!isEditing}
                 className="form-input"
@@ -162,21 +178,21 @@ const Profile = () => {
 
             {isEditing && (
               <div className="form-actions">
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   className="btn-cancel"
                   onClick={() => {
                     setIsEditing(false);
                     setProfile({
-                      email: user.email || '',
-                      username: user.username || user.email?.split('@')[0] || ''
+                      email: user?.email || '',
+                      name: user?.name || '',
                     });
                   }}
                 >
                   Cancel
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   className="btn-save"
                   disabled={isSaving}
                 >
@@ -187,7 +203,7 @@ const Profile = () => {
           </form>
         </div>
 
-        {/* Change Password Card */}
+        {/* Change Password */}
         <div className="settings-card">
           <div className="card-header">
             <h2>Change Password</h2>
@@ -232,17 +248,21 @@ const Profile = () => {
               />
             </div>
 
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               className="btn-primary"
-              disabled={isSaving || !passwords.currentPassword || !passwords.newPassword}
+              disabled={
+                isSaving ||
+                !passwords.currentPassword ||
+                !passwords.newPassword
+              }
             >
               {isSaving ? 'Updating...' : 'Update Password'}
             </button>
           </form>
         </div>
 
-        {/* Danger Zone Card */}
+        {/* Danger Zone */}
         <div className="settings-card danger-zone">
           <div className="card-header">
             <h2>Danger Zone</h2>
@@ -251,7 +271,10 @@ const Profile = () => {
           <div className="danger-content">
             <div className="danger-info">
               <h3>Delete Account</h3>
-              <p>Once you delete your account, there is no going back. Please be certain.</p>
+              <p>
+                Once you delete your account, there is no going back. Please be
+                certain.
+              </p>
             </div>
             <button className="btn-danger" onClick={handleDeleteAccount}>
               Delete Account
@@ -259,9 +282,9 @@ const Profile = () => {
           </div>
         </div>
 
-        {/* Logout Button */}
+        {/* Logout */}
         <div className="settings-card">
-          <button 
+          <button
             className="btn-logout"
             onClick={() => {
               logout();

@@ -1,206 +1,287 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
-import { useAuth } from "../context/AuthContext";
-import { pdfAPI, papersAPI } from "../services/api";
-import { useNavigate } from "react-router-dom";
-import ArxivSearch from "./ArxivSearch";
-import RecentPapers from "./RecentPapers";
-import "./common.css";
-import "./Dashboard.css";
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { pdfAPI, papersAPI } from '../services/api';
+import { useNavigate } from 'react-router-dom';
+import ArxivSearch from './ArxivSearch';
+import RecentPapers from './RecentPapers';
+import PaperDetails from './PaperDetails';
+import './common.css';
+import './Dashboard.css';
 
 const Dashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
+  // -----------------------------
+  // Uploads (PDF library)
+  // -----------------------------
   const [files, setFiles] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadError, setUploadError] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
+  const [uploadError, setUploadError] = useState('');
+  const [isLoadingLibrary, setIsLoadingLibrary] = useState(true);
+
+  // -----------------------------
+  // arXiv + views
+  // -----------------------------
+  const [recentArxiv, setRecentArxiv] = useState([]);
+  const [recentlyViewed, setRecentlyViewed] = useState([]);
+
+  // -----------------------------
+  // UI state
+  // -----------------------------
+  const [selectedPaperId, setSelectedPaperId] = useState(null);
+  const [showPaperDetail, setShowPaperDetail] = useState(false);
+  const [searchDraft, setSearchDraft] = useState('');
+  const [libraryFilter, setLibraryFilter] = useState('');
 
   const fileInputRef = useRef(null);
   const librarySectionRef = useRef(null);
 
-  const [searchDraft, setSearchDraft] = useState("");
-  const [libraryFilter, setLibraryFilter] = useState("");
+  // ==================================================
+  // 📥 Initial data load
+  // ==================================================
 
   useEffect(() => {
-    fetchFiles();
+    fetchUploads();
+    fetchRecentArxiv();
+    fetchRecentlyViewed();
   }, []);
 
-  const fetchFiles = async () => {
+  const fetchUploads = async () => {
     try {
       const res = await pdfAPI.getMyUploads();
-      setFiles(res.data);
+      setFiles(res.data || []);
     } catch (err) {
-      console.error("Failed to fetch uploads", err);
       setFiles([]);
     } finally {
-      setIsLoading(false);
+      setIsLoadingLibrary(false);
     }
   };
 
-  // ================= Upload =================
+  const fetchRecentArxiv = async () => {
+    try {
+      const res = await papersAPI.getRecent(10);
+      setRecentArxiv(res.data || []);
+    } catch {
+      setRecentArxiv([]);
+    }
+  };
+
+  const fetchRecentlyViewed = async () => {
+    try {
+      const res = await papersAPI.getRecentlyViewed(10);
+      setRecentlyViewed(res.data || []);
+    } catch {
+      setRecentlyViewed([]);
+    }
+  };
+
+  // ==================================================
+  // 📤 Upload PDF
+  // ==================================================
 
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.name.toLowerCase().endsWith(".pdf")) {
-      setUploadError("Only PDF files are supported");
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      setUploadError('Only PDF files are supported');
       return;
     }
 
     setIsUploading(true);
-    setUploadError("");
+    setUploadError('');
 
     try {
       await pdfAPI.upload(file);
-      await fetchFiles();
-      e.target.value = "";
+      await fetchUploads();
     } catch (err) {
-      setUploadError("Upload failed");
+      setUploadError(err.response?.data?.detail || 'Upload failed');
     } finally {
       setIsUploading(false);
+      e.target.value = '';
     }
   };
 
-  const triggerFilePicker = () => {
-    if (!isUploading) {
-      fileInputRef.current?.click();
-    }
+  // ==================================================
+  // 🧭 Navigation helpers
+  // ==================================================
+
+  const openChat = (documentId, filename) => {
+    navigate(`/chat/${documentId}`, { state: { filename } });
   };
 
-  // ================= Navigation =================
-
-  const handleChat = (documentId) => {
-    navigate(`/chat/${documentId}`);
+  const openPaperDetails = (paperId) => {
+    setSelectedPaperId(paperId);
+    setShowPaperDetail(true);
   };
 
-  const handleDelete = async (documentId) => {
-    if (!confirm("Delete this PDF?")) return;
-
-    try {
-      await pdfAPI.deletePDF(documentId);
-      await fetchFiles();
-    } catch {
-      alert("Delete failed");
-    }
+  const backFromPaper = () => {
+    setSelectedPaperId(null);
+    setShowPaperDetail(false);
+    fetchRecentlyViewed();
   };
 
-  const handleProcessArxivPaper = async (paperId) => {
-    try {
-      const res = await papersAPI.analyzePaper(paperId);
-      navigate(`/chat/${res.data.document_id}`);
-    } catch (err) {
-      alert("Failed to analyze paper");
-    }
-  };
-
-  // ================= Derived UI =================
+  // ==================================================
+  // 🔍 Library filtering
+  // ==================================================
 
   const filteredFiles = useMemo(() => {
     if (!libraryFilter) return files;
     return files.filter((f) =>
-      f.title.toLowerCase().includes(libraryFilter.toLowerCase())
+      f.title?.toLowerCase().includes(libraryFilter.toLowerCase())
     );
   }, [files, libraryFilter]);
 
-  const stats = useMemo(() => {
-    const count = files.length;
-    const totalBytes = files.reduce(
-      (sum, f) => sum + (f.size_bytes || 0),
-      0
-    );
-    return {
-      count,
-      totalSizeMB: totalBytes / (1024 * 1024),
-    };
-  }, [files]);
+  // ==================================================
+  // 👤 User display helpers
+  // ==================================================
 
-  const primaryName = user?.name?.split(" ")[0] || "Researcher";
+  const primaryName = user?.name?.split(' ')[0] || 'Researcher';
+  const userInitials =
+    user?.name
+      ?.split(' ')
+      .map((p) => p[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase() || 'U';
 
-  // ================= Render =================
+  // ==================================================
+  // 🧩 Render
+  // ==================================================
 
   return (
     <div className="dashboard">
       <nav className="navbar">
         <div className="navbar-left">
-          <h1>Research AI Companion</h1>
-          <p>Organize papers, uncover insights.</p>
+          <button className="navbar-title" onClick={() => navigate('/')}>
+            Research AI Companion
+          </button>
+          <p className="navbar-subtitle">
+            Discover, analyze, and chat with research papers.
+          </p>
         </div>
+
         <div className="navbar-right">
-          <span>{user?.name}</span>
-          <button onClick={logout}>Logout</button>
+          <div className="user-chip">
+            <span className="user-avatar">{userInitials}</span>
+            <div className="user-meta">
+              <span className="user-greeting">Welcome back</span>
+              <span className="user-name">{user?.name}</span>
+            </div>
+          </div>
+
+          <button onClick={logout} className="btn-logout">
+            Logout
+          </button>
         </div>
       </nav>
 
-      <section className="dashboard-hero">
-        <h2>Welcome back, {primaryName}</h2>
-        <p>Search arXiv or upload your PDFs to start chatting.</p>
-
-        <div className="hero-actions">
-          <button onClick={triggerFilePicker} disabled={isUploading}>
-            {isUploading ? "Uploading…" : "Upload PDF"}
-          </button>
-          <button onClick={() => librarySectionRef.current?.scrollIntoView({ behavior: "smooth" })}>
-            Browse Library
-          </button>
-        </div>
-      </section>
-
-      {/* 🔍 arXiv Search */}
-      <section className="arxiv-search-section">
-        <h2>Search arXiv</h2>
-        <ArxivSearch
-          onSelectPaper={(paper) => handleProcessArxivPaper(paper._id)}
-        />
-      </section>
-
-      {/* 📚 Library */}
-      <section ref={librarySectionRef} className="files-section">
-        <h2>My Library</h2>
-
-        <input
-          type="text"
-          placeholder="Search library…"
-          value={searchDraft}
-          onChange={(e) => setSearchDraft(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && setLibraryFilter(searchDraft)}
-        />
-
-        {isLoading ? (
-          <p>Loading…</p>
-        ) : filteredFiles.length === 0 ? (
-          <p>No PDFs found.</p>
+      <div className="dashboard-content">
+        {/* ================================================= */}
+        {/* 📄 Paper detail view */}
+        {/* ================================================= */}
+        {showPaperDetail && selectedPaperId ? (
+          <PaperDetails
+            paperId={selectedPaperId}
+            onBack={backFromPaper}
+          />
         ) : (
-          <div className="files-grid">
-            {filteredFiles.map((file) => (
-              <div key={file._id} className="file-card">
-                <h3>{file.title}</h3>
-                <div className="file-meta">
-                  <span>{file.source === "arxiv" ? "arXiv" : "Upload"}</span>
-                </div>
-                <div className="file-actions">
-                  <button onClick={() => handleChat(file._id)}>
-                    {file.source === "arxiv" ? "Analyze" : "Open Chat"}
-                  </button>
-                  {file.source === "upload" && (
-                    <button onClick={() => handleDelete(file._id)}>Delete</button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+          <>
+            {/* ================================================= */}
+            {/* 🔥 Recent arXiv papers */}
+            {/* ================================================= */}
+            <section className="panel-card">
+              <h2>🔥 Recent arXiv Papers</h2>
+              <RecentPapers
+                papers={recentArxiv}
+                onSelect={openPaperDetails}
+              />
+            </section>
 
-      {/* 📤 Hidden upload input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".pdf"
-        onChange={handleFileUpload}
-        hidden
-      />
+            {/* ================================================= */}
+            {/* 🔍 Semantic search */}
+            {/* ================================================= */}
+            <section className="panel-card arxiv-search-section">
+              <h2>🔍 Search arXiv</h2>
+              <ArxivSearch onSelectPaper={openPaperDetails} />
+            </section>
+
+            {/* ================================================= */}
+            {/* 🕘 Recently viewed (mixed) */}
+            {/* ================================================= */}
+            <section className="panel-card">
+              <h2>🕘 Recently Viewed</h2>
+              <RecentPapers
+                papers={recentlyViewed}
+                onSelect={(item) => {
+                  if (item.document_id) {
+                    openChat(item.document_id);
+                  } else if (item._id) {
+                    openPaperDetails(item._id);
+                  }
+                }}
+              />
+            </section>
+
+            {/* ================================================= */}
+            {/* 📤 Upload + library */}
+            {/* ================================================= */}
+            <section ref={librarySectionRef} className="panel-card">
+              <h2>📚 My Library</h2>
+
+              <div className="library-actions">
+                <input
+                  type="text"
+                  placeholder="Search your PDFs…"
+                  value={searchDraft}
+                  onChange={(e) => setSearchDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      setLibraryFilter(searchDraft);
+                    }
+                  }}
+                />
+
+                <button onClick={() => fileInputRef.current?.click()}>
+                  Upload PDF
+                </button>
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf"
+                  hidden
+                  onChange={handleFileUpload}
+                />
+              </div>
+
+              {uploadError && <p className="error-message">{uploadError}</p>}
+
+              {isLoadingLibrary ? (
+                <p>Loading library…</p>
+              ) : filteredFiles.length === 0 ? (
+                <p>No PDFs found.</p>
+              ) : (
+                <div className="files-grid">
+                  {filteredFiles.map((file) => (
+                    <div key={file._id} className="file-card">
+                      <h3>{file.title}</h3>
+                      <button
+                        onClick={() =>
+                          openChat(file._id, file.title)
+                        }
+                      >
+                        Open chat
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </>
+        )}
+      </div>
     </div>
   );
 };

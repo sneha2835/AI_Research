@@ -215,6 +215,7 @@ Answer:
 
     timestamp = datetime.utcnow()
 
+    # ✅ SINGLE, AUTHORITATIVE CHAT SAVE
     await db.chat_history.insert_many([
         {
             "document_id": ObjectId(payload.document_id),
@@ -296,6 +297,7 @@ Text:
 
         summary = summarize_text(prompt) or "Summary generation failed."
 
+    # ✅ SINGLE SAVE (summary only)
     await db.chat_history.insert_one({
         "document_id": ObjectId(payload.document_id),
         "user_id": current_user["_id"],

@@ -25,15 +25,20 @@ async def get_recent_papers(
     limit: int = Query(10, ge=5, le=20),
     current_user=Depends(get_current_user),
 ):
-    papers = await db.research_papers.find(
-        {},
-        {
-            "title": 1,
-            "abstract": 1,
-            "published": 1,
-            "pdf_url": 1,
-        },
-    ).sort("published", -1).limit(limit).to_list(limit)
+    papers = (
+        await db.research_papers.find(
+            {},
+            {
+                "title": 1,
+                "abstract": 1,
+                "published": 1,
+                "pdf_url": 1,
+            },
+        )
+        .sort("published", -1)
+        .limit(limit)
+        .to_list(limit)
+    )
 
     for p in papers:
         p["_id"] = str(p["_id"])
@@ -81,7 +86,8 @@ async def search_papers(
     return papers
 
 # ==================================================
-# 📄 Paper details (CLICK → VIEW ABSTRACT)
+# 📄 Paper details (VIEW ABSTRACT)
+# Logs recent view HERE (NOT analyze)
 # ==================================================
 
 @papers_router.get("/{paper_id}")
@@ -95,6 +101,24 @@ async def get_paper_details(
     paper = await db.research_papers.find_one({"_id": ObjectId(paper_id)})
     if not paper:
         raise HTTPException(404, "Paper not found")
+
+    # 🔔 Log recent view on VIEW (flow step 4)
+    await db.recent_views.update_one(
+        {
+            "user_id": current_user["_id"],
+            "type": "arxiv",
+            "paper_id": paper_id,
+        },
+        {
+            "$set": {
+                "title": paper["title"],
+                "abstract": paper.get("abstract"),
+                "published": paper.get("published"),
+                "viewed_at": datetime.utcnow(),
+            }
+        },
+        upsert=True,
+    )
 
     paper["_id"] = str(paper["_id"])
     return paper
@@ -120,7 +144,7 @@ async def analyze_arxiv_paper(
     if not paper:
         raise HTTPException(404, "Paper not found")
 
-    # 🔑 Get or create unified document
+    # 🔑 Get or create unified document (shared)
     document = await get_or_create_arxiv_document(paper)
 
     # ==================================================
@@ -143,11 +167,14 @@ async def analyze_arxiv_paper(
             {"$set": {"path": pdf_path}},
         )
 
+        # 🔄 Ensure fresh document state
+        document = await db.documents.find_one({"_id": document["_id"]})
         document["path"] = pdf_path
+
         await extract_and_index_pdf(document)
 
     # ==================================================
-    # 🕘 Log recent view (arXiv)
+    # 🕘 Log recent view (post-analysis)
     # ==================================================
 
     await db.recent_views.update_one(
@@ -192,9 +219,14 @@ async def get_recently_viewed(
     limit: int = Query(10, ge=1, le=20),
     current_user=Depends(get_current_user),
 ):
-    views = await db.recent_views.find(
-        {"user_id": current_user["_id"]}
-    ).sort("viewed_at", -1).limit(limit).to_list(limit)
+    views = (
+        await db.recent_views.find(
+            {"user_id": current_user["_id"]}
+        )
+        .sort("viewed_at", -1)
+        .limit(limit)
+        .to_list(limit)
+    )
 
     results = []
 
@@ -210,7 +242,7 @@ async def get_recently_viewed(
                 "_id": v.get("paper_id"),
                 "abstract": v.get("abstract"),
                 "published": v.get("published"),
-                "document_id": str(v.get("document_id")),
+                "document_id": str(v.get("document_id")) if v.get("document_id") else None,
             })
         else:
             item.update({

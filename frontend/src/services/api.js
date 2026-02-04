@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_BASE_URL = "http://localhost:8001";
+const API_BASE_URL = "http://localhost:8000";
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -65,6 +65,15 @@ export const pdfAPI = {
 
   deletePDF: (document_id) =>
     api.delete(`/pdf/delete/${document_id}`),
+
+  // --------------------------
+  // 💬 Chat APIs
+  // --------------------------
+  getChatHistory: (document_id) =>
+    api.get(`/pdf/chat/history/${document_id}`),
+
+  saveChat: (payload) =>
+    api.post("/pdf/chat/save", payload),
 };
 
 // ==================================================
