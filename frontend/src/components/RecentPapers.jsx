@@ -1,5 +1,5 @@
 import React from 'react';
-import './RecentPapers.css';
+//import './RecentPapers.css';
 
 const RecentPapers = ({ papers = [], onSelect }) => {
   if (!papers.length) {

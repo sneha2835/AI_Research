@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { papersAPI } from "../services/api";
 import "./common.css";
-import "./PaperDetails.css";
+//import "./PaperDetails.css";
 
 const PaperDetails = () => {
   const { paperId } = useParams();

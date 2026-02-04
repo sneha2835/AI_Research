@@ -81,6 +81,47 @@ async def search_papers(
     return papers
 
 # ==================================================
+# 🕘 Recently viewed
+# ==================================================
+
+@papers_router.get("/recently-viewed")
+async def get_recently_viewed(
+    limit: int = Query(10, ge=1, le=20),
+    current_user=Depends(get_current_user),
+):
+    views = (
+        await db.recent_views.find({"user_id": current_user["_id"]})
+        .sort("viewed_at", -1)
+        .limit(limit)
+        .to_list(limit)
+    )
+
+    results = []
+
+    for v in views:
+        item = {
+            "type": v.get("type"),
+            "title": v.get("title"),
+            "viewed_at": v.get("viewed_at"),
+        }
+
+        if v.get("type") == "arxiv":
+            item.update({
+                "_id": v.get("paper_id"),
+                "abstract": v.get("abstract"),
+                "published": v.get("published"),
+                "document_id": str(v.get("document_id")) if v.get("document_id") else None,
+            })
+        else:
+            item.update({
+                "_id": str(v.get("document_id")),
+            })
+
+        results.append(item)
+
+    return results
+
+# ==================================================
 # 📄 Paper details (VIEW ABSTRACT)
 # ==================================================
 
@@ -115,6 +156,8 @@ async def get_paper_details(
 
     paper["_id"] = str(paper["_id"])
     return paper
+
+
 
 # ==================================================
 # 🧠 Analyze / process arXiv paper (FIXED)
@@ -224,43 +267,4 @@ async def process_arxiv_paper(
 ):
     return await analyze_arxiv_paper(paper_id, current_user)
 
-# ==================================================
-# 🕘 Recently viewed
-# ==================================================
 
-@papers_router.get("/recently-viewed")
-async def get_recently_viewed(
-    limit: int = Query(10, ge=1, le=20),
-    current_user=Depends(get_current_user),
-):
-    views = (
-        await db.recent_views.find({"user_id": current_user["_id"]})
-        .sort("viewed_at", -1)
-        .limit(limit)
-        .to_list(limit)
-    )
-
-    results = []
-
-    for v in views:
-        item = {
-            "type": v.get("type"),
-            "title": v.get("title"),
-            "viewed_at": v.get("viewed_at"),
-        }
-
-        if v.get("type") == "arxiv":
-            item.update({
-                "_id": v.get("paper_id"),
-                "abstract": v.get("abstract"),
-                "published": v.get("published"),
-                "document_id": str(v.get("document_id")) if v.get("document_id") else None,
-            })
-        else:
-            item.update({
-                "_id": str(v.get("document_id")),
-            })
-
-        results.append(item)
-
-    return results
