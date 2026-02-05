@@ -1,8 +1,8 @@
 # backend/scripts/reindex_research_papers.py
 
 from pymongo import MongoClient
-from backend.app.config import settings
-from backend.app.chroma_store import add_research_abstracts
+from app.config import settings
+from app.chroma_store import add_research_abstracts
 
 
 def main():

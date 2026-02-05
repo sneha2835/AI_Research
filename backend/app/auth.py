@@ -7,8 +7,8 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from bson import ObjectId
 
-from backend.app.config import settings
-from backend.app.db import db
+from app.config import settings
+from app.db import db
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
@@ -17,14 +17,22 @@ security = HTTPBearer()
 # Password helpers
 # -------------------------
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+import hashlib
+from passlib.context import CryptContext
 
+pwd_context = CryptContext(
+    schemes=["argon2"],
+    deprecated="auto",
+)
+
+def _prehash(password: str) -> str:
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()
 
 def get_password_hash(password: str) -> str:
-    if len(password) < 8:
-        raise ValueError("Password must be at least 8 characters long")
-    return pwd_context.hash(password)
+    return pwd_context.hash(_prehash(password))
+
+def verify_password(password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(_prehash(password), hashed_password)
 
 # -------------------------
 # JWT helpers

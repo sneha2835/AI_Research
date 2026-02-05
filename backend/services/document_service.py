@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from bson import ObjectId
-from backend.app.db import db
+from app.db import db
 
 
 # ==================================================

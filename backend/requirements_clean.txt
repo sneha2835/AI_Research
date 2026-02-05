@@ -1,0 +1,67 @@
+﻿# =========================
+# Core API
+# =========================
+fastapi==0.116.1
+uvicorn[standard]==0.35.0
+python-dotenv==1.1.1
+python-multipart==0.0.22
+
+# =========================
+# Pydantic (v2)
+# =========================
+pydantic==2.11.7
+pydantic-settings==2.10.1
+email-validator==2.3.0
+
+# =========================
+# Database
+# =========================
+motor==3.7.1
+pymongo==4.13.2
+
+# =========================
+# Authentication
+# =========================
+python-jose[cryptography]==3.5.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.1.2
+argon2-cffi==23.1.0
+
+
+# =========================
+# LangChain
+# =========================
+langchain==0.3.27
+langchain-core==0.3.72
+langchain-community==0.3.27
+langchain-chroma==0.2.5
+
+# =========================
+# Vector Store
+# =========================
+chromadb==1.0.15
+sentence-transformers==3.4.1
+
+# =========================
+# ML / LLM
+# =========================
+torch==2.7.1
+transformers==4.57.3
+accelerate==1.10.1
+sentencepiece==0.2.0
+
+# =========================
+# PDF & Research
+# =========================
+pypdf==5.9.0
+pdfplumber==0.11.7
+arxiv==2.1.0
+
+# =========================
+# HTTP
+# =========================
+aiohttp==3.12.15
+httpx==0.28.1
+
+# python -m scripts.fetch_arxiv to fetch latest arxiv papers and update the requirements file accordingly.
+# python -m scripts.reindex_research_papers to reindex the papers after updating the requirements file.

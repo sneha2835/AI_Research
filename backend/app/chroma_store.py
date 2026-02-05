@@ -7,7 +7,7 @@ import os
 import chromadb
 from sentence_transformers import SentenceTransformer
 from langchain_chroma import Chroma
-from backend.app.config import settings
+from app.config import settings
 
 # --------------------------------------------------
 # Persistent Chroma directory

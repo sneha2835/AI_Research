@@ -1,7 +1,7 @@
 # backend/app/db.py
 
 from motor.motor_asyncio import AsyncIOMotorClient
-from backend.app.config import settings
+from app.config import settings
 
 # --------------------------------------------------
 # MongoDB client (single global connection)

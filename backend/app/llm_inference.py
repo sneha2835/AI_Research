@@ -1,6 +1,6 @@
 import threading
 from transformers import pipeline
-from backend.app.config import settings
+from app.config import settings
 
 # ==================================================
 # 🔒 Thread-safe lazy loading

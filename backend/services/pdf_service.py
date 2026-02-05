@@ -1,8 +1,8 @@
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
 from pypdf import PdfReader
-from backend.app.chroma_store import add_chunks_to_chroma
-from backend.app.db import db
+from app.chroma_store import add_chunks_to_chroma
+from app.db import db
 
 
 # ==================================================

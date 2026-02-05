@@ -2,6 +2,10 @@
 
 from pydantic_settings import BaseSettings
 from pydantic import field_validator
+from pathlib import Path
+
+
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 class Settings(BaseSettings):
@@ -46,16 +50,17 @@ class Settings(BaseSettings):
     MONGO_URI: str | None = None
 
     # --------------------
-    # ENV config
+    # Pydantic v2 env config (ABSOLUTE PATH)
     # --------------------
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = False
-        extra = "allow"
+    model_config = {
+        "env_file": BASE_DIR / ".env",
+        "env_file_encoding": "utf-8",
+        "case_sensitive": False,
+        "extra": "allow",
+    }
 
     # --------------------
-    # FORCE BOOLEAN PARSING
+    # Force boolean parsing
     # --------------------
     @field_validator("ENABLE_CHROMA", mode="before")
     @classmethod
@@ -67,5 +72,5 @@ class Settings(BaseSettings):
         return bool(v)
 
 
-# ✅ Singleton settings instance
+# Singleton settings instance
 settings = Settings()

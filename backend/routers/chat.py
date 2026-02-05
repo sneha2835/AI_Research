@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from bson import ObjectId
-from backend.app.db import db
-from backend.app.auth import get_current_user
+from app.db import db
+from app.auth import get_current_user
 
 chat_router = APIRouter(prefix="/chat", tags=["Chat"])
 

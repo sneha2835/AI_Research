@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, Body, Path, Query, HTTPException
 from bson import ObjectId
 from typing import List
-from backend.app.auth import get_current_user, get_password_hash
-from backend.app.db import db
-from backend.app.utils import UserRead, UserRegister
+from app.auth import get_current_user, get_password_hash
+from app.db import db
+from app.utils import UserRead, UserRegister
 
 users_router = APIRouter(tags=["Users"])
 

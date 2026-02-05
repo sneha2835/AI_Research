@@ -2,11 +2,11 @@ from datetime import datetime
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from backend.app.db import db
-from backend.app.auth import get_current_user
-from backend.app.chroma_store import search_research_papers
-from backend.services.document_service import get_or_create_arxiv_document
-from backend.services.pdf_service import extract_and_index_pdf
+from app.db import db
+from app.auth import get_current_user
+from app.chroma_store import search_research_papers
+from services.document_service import get_or_create_arxiv_document
+from services.pdf_service import extract_and_index_pdf
 
 import aiohttp
 import os

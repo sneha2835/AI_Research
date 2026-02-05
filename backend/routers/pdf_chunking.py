@@ -2,13 +2,13 @@ from datetime import datetime
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 
-from backend.app.db import db
-from backend.app.auth import get_current_user
-from backend.app.chroma_store import semantic_search
-from backend.app.llm_inference import answer_from_context, summarize_text
-from backend.services.document_service import create_uploaded_document
-from backend.services.pdf_service import extract_and_index_pdf
-from backend.schemas.pdf import AskPdfRequest, SummarizePdfRequest
+from app.db import db
+from app.auth import get_current_user
+from app.chroma_store import semantic_search
+from app.llm_inference import answer_from_context, summarize_text
+from services.document_service import create_uploaded_document
+from services.pdf_service import extract_and_index_pdf
+from schemas.pdf import AskPdfRequest, SummarizePdfRequest
 
 import os
 import re

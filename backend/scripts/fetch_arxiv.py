@@ -4,8 +4,8 @@ import arxiv
 from datetime import datetime
 from pymongo import MongoClient
 
-from backend.app.config import settings
-from backend.app.chroma_store import add_research_abstracts
+from app.config import settings
+from app.chroma_store import add_research_abstracts
 
 MAX_PAPERS = 150
 
