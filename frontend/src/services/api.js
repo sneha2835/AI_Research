@@ -10,7 +10,7 @@ const api = axios.create({
 // 🔐 Attach JWT automatically
 // ==================================================
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("access_token");
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -70,7 +70,7 @@ export const pdfAPI = {
   // 💬 Chat APIs
   // --------------------------
   getChatHistory: (document_id) =>
-    api.get(`/pdf/chat/history/${document_id}`),
+    api.get(`/chat/${document_id}`),
 
   saveChat: (payload) =>
     api.post("/pdf/chat/save", payload),

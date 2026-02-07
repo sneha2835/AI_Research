@@ -20,7 +20,7 @@ export const AuthProvider = ({ children }) => {
       }
 
       try {
-        const response = await authAPI.getMe();
+        const response = await authAPI.getCurrentUser();
 
         const safeUser = normalizeUser(response.data);
         setUser(safeUser);
@@ -40,11 +40,19 @@ export const AuthProvider = ({ children }) => {
   // Login
   // -------------------------------------------
   const login = async (email, password) => {
-    const response = await authAPI.login(email, password);
+    const response = await authAPI.login({ email, password });
     localStorage.setItem('access_token', response.data.access_token);
 
-    const me = await authAPI.getMe();
+    const me = await authAPI.getCurrentUser();
     setUser(normalizeUser(me.data));
+  };
+
+  // -------------------------------------------
+  // Register
+  // -------------------------------------------
+  const register = async (name, email, password) => {
+    await authAPI.register({ name, email, password });
+    await login(email, password);
   };
 
   // -------------------------------------------
@@ -61,6 +69,7 @@ export const AuthProvider = ({ children }) => {
         user,
         setUser,
         login,
+        register,
         logout,
         loading,
         isAuthenticated: !!user,

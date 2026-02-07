@@ -20,7 +20,7 @@ const UserManagement = () => {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('access_token');
       const response = await fetch('http://localhost:8001/users', {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -55,7 +55,7 @@ const UserManagement = () => {
   const handleUpdate = async (e) => {
     e.preventDefault();
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('access_token');
       const response = await fetch(`http://localhost:8001/users/${editingUser._id}`, {
         method: 'PUT',
         headers: {
@@ -85,7 +85,7 @@ const UserManagement = () => {
     }
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('access_token');
       const response = await fetch(`http://localhost:8001/users/${userId}`, {
         method: 'DELETE',
         headers: {

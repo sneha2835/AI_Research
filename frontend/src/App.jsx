@@ -10,23 +10,23 @@ import UserManagement from './components/UserManagement';
 import './App.css';
 
 const PrivateRoute = ({ children }) => {
-  const { token, isLoading } = useAuth();
+  const { user, loading } = useAuth();
   
-  if (isLoading) {
+  if (loading) {
     return <div className="loading-screen">Loading...</div>;
   }
   
-  return token ? <>{children}</> : <Navigate to="/login" />;
+  return user ? <>{children}</> : <Navigate to="/login" />;
 };
 
 const PublicRoute = ({ children }) => {
-  const { token, isLoading } = useAuth();
+  const { user, loading } = useAuth();
   
-  if (isLoading) {
+  if (loading) {
     return <div className="loading-screen">Loading...</div>;
   }
   
-  return token ? <Navigate to="/dashboard" /> : <>{children}</>;
+  return user ? <Navigate to="/dashboard" /> : <>{children}</>;
 };
 
 function AppRoutes() {
@@ -58,7 +58,7 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/chat/:metadataId"
+        path="/chat/:document_id"
         element={
           <PrivateRoute>
             <Chat />

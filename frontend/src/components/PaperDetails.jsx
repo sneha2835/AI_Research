@@ -4,8 +4,9 @@ import { papersAPI } from "../services/api";
 import "./common.css";
 //import "./PaperDetails.css";
 
-const PaperDetails = () => {
-  const { paperId } = useParams();
+const PaperDetails = ({ paperId: selectedPaperId }) => {
+  const { paperId: routePaperId } = useParams();
+  const paperId = selectedPaperId || routePaperId;
   const navigate = useNavigate();
 
   const [paper, setPaper] = useState(null);
@@ -18,6 +19,11 @@ const PaperDetails = () => {
   }, [paperId]);
 
   const fetchPaper = async () => {
+    if (!paperId) {
+      setError("Paper not found.");
+      setLoading(false);
+      return;
+    }
     try {
       const res = await papersAPI.getPaperDetails(paperId);
       setPaper(res.data);

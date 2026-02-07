@@ -75,10 +75,16 @@ async def search_papers(
         {"_id": {"$in": paper_ids}}
     ).to_list(limit)
 
-    for p in papers:
-        p["_id"] = str(p["_id"])
+    papers_by_id = {str(p["_id"]): p for p in papers}
+    ordered = []
+    for pid in paper_ids:
+        paper = papers_by_id.get(str(pid))
+        if not paper:
+            continue
+        paper["_id"] = str(paper["_id"])
+        ordered.append(paper)
 
-    return papers
+    return ordered
 
 # ==================================================
 # 🕘 Recently viewed
@@ -114,7 +120,8 @@ async def get_recently_viewed(
             })
         else:
             item.update({
-                "_id": str(v.get("document_id")),
+                "_id": str(v.get("document_id")) if v.get("document_id") else None,
+                "document_id": str(v.get("document_id")) if v.get("document_id") else None,
             })
 
         results.append(item)
@@ -266,5 +273,3 @@ async def process_arxiv_paper(
     current_user=Depends(get_current_user),
 ):
     return await analyze_arxiv_paper(paper_id, current_user)
-
-

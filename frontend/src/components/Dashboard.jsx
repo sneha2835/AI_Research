@@ -107,11 +107,13 @@ const Dashboard = () => {
   // 🧭 Navigation helpers
   // ==================================================
 
-  const openChat = (documentId, filename) => {
-    navigate(`/chat/${documentId}`, { state: { filename } });
+  const openChat = (documentId, title) => {
+    navigate(`/chat/${documentId}`, { state: { title } });
   };
 
-  const openPaperDetails = (paperId) => {
+  const openPaperDetails = (paper) => {
+    const paperId = typeof paper === 'string' ? paper : paper?._id;
+    if (!paperId) return;
     setSelectedPaperId(paperId);
     setShowPaperDetail(true);
   };
@@ -204,7 +206,13 @@ const Dashboard = () => {
             {/* ================================================= */}
             <section className="panel-card arxiv-search-section">
               <h2>🔍 Search arXiv</h2>
-              <ArxivSearch onSelectPaper={openPaperDetails} />
+              <ArxivSearch
+                onSelectPaper={openPaperDetails}
+                onAnalyzePaper={async (paperId) => {
+                  const res = await papersAPI.analyzePaper(paperId);
+                  openChat(res.data.document_id);
+                }}
+              />
             </section>
 
             {/* ================================================= */}
@@ -216,7 +224,7 @@ const Dashboard = () => {
                 papers={recentlyViewed}
                 onSelect={(item) => {
                   if (item.document_id) {
-                    openChat(item.document_id);
+                    openChat(item.document_id, item.title);
                   } else if (item._id) {
                     openPaperDetails(item._id);
                   }

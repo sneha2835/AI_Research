@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { papersAPI } from '../services/api';
 import './common.css';
 
-const ArxivSearch = ({ onSelectPaper, onProcessPaper }) => {
+const ArxivSearch = ({ onSelectPaper, onAnalyzePaper }) => {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -26,16 +26,11 @@ const ArxivSearch = ({ onSelectPaper, onProcessPaper }) => {
     }
   };
 
-  const handleProcessPaper = async (paperId, paperTitle) => {
-    if (!onProcessPaper) return;
-    
+  const handleAnalyzePaper = async (paperId) => {
+    if (!onAnalyzePaper) return;
+
     try {
-      const response = await papersAPI.processArxiv(paperId);
-      onProcessPaper({
-        ...response.data,
-        paperId,
-        paperTitle,
-      });
+      await onAnalyzePaper(paperId);
     } catch (err) {
       alert('Failed to process paper: ' + (err.response?.data?.detail || err.message));
     }
@@ -74,13 +69,13 @@ const ArxivSearch = ({ onSelectPaper, onProcessPaper }) => {
                 <p className="paper-abstract">{paper.abstract.substring(0, 200)}...</p>
                 <div className="paper-actions">
                   <button
-                    onClick={() => onSelectPaper && onSelectPaper(paper)}
+                    onClick={() => onSelectPaper && onSelectPaper(paper._id)}
                     className="btn-outline"
                   >
                     View Details
                   </button>
                   <button
-                    onClick={() => handleProcessPaper(paper._id, paper.title)}
+                    onClick={() => handleAnalyzePaper(paper._id)}
                     className="btn-primary"
                   >
                     Analyze Paper
