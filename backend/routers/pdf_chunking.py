@@ -45,8 +45,9 @@ def deduplicate_chunks(chunks, max_chunks):
 
     return unique
 
+
 # ==================================================
-# 📤 Upload PDF
+# 📤 Upload PDF (Duplicate Safe)
 # ==================================================
 
 @pdf_router.post("/upload")
@@ -56,6 +57,19 @@ async def upload_pdf(
 ):
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(400, "Only PDF files are allowed")
+
+    # 🔥 Prevent duplicate uploads (same filename for same user)
+    existing = await db.documents.find_one({
+        "owner": current_user["_id"],
+        "title": file.filename,
+        "source": "upload"
+    })
+
+    if existing:
+        return {
+            "document_id": str(existing["_id"]),
+            "status": "already_exists",
+        }
 
     document = await create_uploaded_document(
         filename=file.filename,
@@ -73,12 +87,11 @@ async def upload_pdf(
         {"$set": {"path": path, "size_bytes": len(file_bytes)}},
     )
 
-    if not document.get("indexed"):
-        await extract_and_index_pdf({
-            "_id": document["_id"],
-            "path": path,
-            "owner": current_user["_id"],
-        })
+    await extract_and_index_pdf({
+        "_id": document["_id"],
+        "path": path,
+        "owner": current_user["_id"],
+    })
 
     await db.documents.update_one(
         {"_id": document["_id"]},
@@ -105,6 +118,7 @@ async def upload_pdf(
         "status": "uploaded",
     }
 
+
 # ==================================================
 # 📂 List user uploads
 # ==================================================
@@ -123,8 +137,9 @@ async def get_my_uploads(current_user=Depends(get_current_user)):
 
     return docs
 
+
 # ==================================================
-# 🗑️ Delete uploaded PDF
+# 🗑️ Delete uploaded PDF (Also deletes file)
 # ==================================================
 
 @pdf_router.delete("/delete/{document_id}")
@@ -135,28 +150,32 @@ async def delete_pdf(
     if not ObjectId.is_valid(document_id):
         raise HTTPException(400, "Invalid document id")
 
-    await db.documents.delete_one(
-        {
-            "_id": ObjectId(document_id),
-            "owner": current_user["_id"],
-        }
-    )
+    document = await db.documents.find_one({
+        "_id": ObjectId(document_id),
+        "owner": current_user["_id"],
+    })
 
-    await db.chat_history.delete_many(
-        {
-            "document_id": ObjectId(document_id),
-            "user_id": current_user["_id"],
-        }
-    )
+    if not document:
+        raise HTTPException(404, "Document not found")
 
-    await db.recent_views.delete_many(
-        {
-            "document_id": ObjectId(document_id),
-            "user_id": current_user["_id"],
-        }
-    )
+    # 🔥 Delete physical file
+    if document.get("path") and os.path.exists(document["path"]):
+        os.remove(document["path"])
+
+    await db.documents.delete_one({"_id": ObjectId(document_id)})
+
+    await db.chat_history.delete_many({
+        "document_id": ObjectId(document_id),
+        "user_id": current_user["_id"],
+    })
+
+    await db.recent_views.delete_many({
+        "document_id": ObjectId(document_id),
+        "user_id": current_user["_id"],
+    })
 
     return {"status": "deleted"}
+
 
 # ==================================================
 # ❓ Ask PDF (Q&A)
@@ -181,7 +200,6 @@ async def ask_pdf(
     if not document:
         raise HTTPException(404, "Document not found")
 
-    # ⛔ Prevent Q&A while indexing
     if document.get("processing") or not document.get("ready_for_chat"):
         raise HTTPException(
             status_code=409,
@@ -250,6 +268,7 @@ Answer:
 
     return {"answer": answer}
 
+
 # ==================================================
 # 📝 Summarize PDF
 # ==================================================
@@ -273,7 +292,6 @@ async def summarize_pdf(
     if not document:
         raise HTTPException(404, "Document not found")
 
-    # ⛔ Prevent summary while indexing
     if document.get("processing") or not document.get("ready_for_chat"):
         raise HTTPException(
             status_code=409,

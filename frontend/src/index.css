@@ -1,0 +1,240 @@
+/* ================= RESET ================= */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* ================= GLOBAL BODY ================= */
+
+/* LIGHT DEFAULT */
+body {
+  font-family: 'Inter', sans-serif;
+  background: #f5f7fb;
+  color: #111827;
+  min-height: 100vh;
+}
+
+/* DARK MODE */
+body.dark-mode {
+  background: linear-gradient(135deg, #0f172a, #111827, #0b1120);
+  color: white;
+}
+
+
+/* ================= LANDING WRAPPER ================= */
+
+.landing-wrapper {
+  width: 100%;
+  min-height: 100vh;
+}
+
+
+/* ================= HERO ================= */
+
+.hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 80px;
+  padding: 0 80px; /* moved horizontal spacing here */
+  gap: 60px;
+}
+
+.hero-left {
+  flex: 1;
+}
+
+.hero-left h1 {
+  font-size: 58px;
+  line-height: 1.1;
+  margin-bottom: 20px;
+}
+
+.hero-left h1 span {
+  background: linear-gradient(45deg, #60a5fa, #a78bfa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.hero-sub {
+  color: #64748b;
+  font-size: 18px;
+  margin-bottom: 40px;
+  max-width: 500px;
+}
+
+body.dark-mode .hero-sub {
+  color: #94a3b8;
+}
+
+.hero-buttons {
+  display: flex;
+  gap: 20px;
+}
+
+.btn-primary {
+  background: linear-gradient(45deg, #4f46e5, #9333ea);
+  padding: 14px 24px;
+  border-radius: 10px;
+  text-decoration: none;
+  color: white;
+  font-weight: 500;
+}
+
+.btn-secondary {
+  background: transparent;
+  border: 1px solid #cbd5e1;
+  padding: 14px 24px;
+  border-radius: 10px;
+  color: #111827;
+  cursor: pointer;
+}
+
+body.dark-mode .btn-secondary {
+  border: 1px solid #334155;
+  color: white;
+}
+
+
+/* ================= RIGHT SIDE ================= */
+
+.hero-right {
+  flex: 1;
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.motion-glow {
+  display: none;
+}
+
+body.dark-mode .motion-glow {
+  display: block;
+  position: absolute;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(99,102,241,0.6), transparent 70%);
+  filter: blur(100px);
+  animation: float 6s ease-in-out infinite alternate;
+}
+
+.motion-card {
+  position: relative;
+  width: 380px;
+  background: white;
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: 0 0 40px rgba(0,0,0,0.1);
+  animation: floatCard 6s ease-in-out infinite alternate;
+}
+
+body.dark-mode .motion-card {
+  background: #0f172a;
+  box-shadow: 0 0 40px rgba(99,102,241,0.4);
+}
+
+.card-header {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 15px;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.red { background: #ef4444; }
+.yellow { background: #facc15; }
+.green { background: #22c55e; }
+
+.card-search {
+  background: #f1f5f9;
+  padding: 10px;
+  border-radius: 8px;
+  margin-bottom: 15px;
+}
+
+body.dark-mode .card-search {
+  background: #1e293b;
+}
+
+.card-body p {
+  font-size: 14px;
+  color: #64748b;
+  margin-bottom: 15px;
+}
+
+body.dark-mode .card-body p {
+  color: #94a3b8;
+}
+
+.analyze-btn {
+  background: linear-gradient(45deg, #4f46e5, #9333ea);
+  border: none;
+  padding: 10px 18px;
+  border-radius: 8px;
+  color: white;
+  cursor: pointer;
+}
+
+
+/* ================= FEATURES ================= */
+
+.features {
+  margin-top: 120px;
+  display: flex;
+  gap: 40px;
+  padding: 0 80px; /* match hero padding */
+}
+
+.feature-card {
+  flex: 1;
+  background: white;
+  padding: 40px;
+  border-radius: 20px;
+  transition: 0.3s;
+  box-shadow: 0 8px 25px rgba(0,0,0,0.05);
+}
+
+body.dark-mode .feature-card {
+  background: #111827;
+}
+
+.feature-card:hover {
+  transform: translateY(-8px);
+}
+
+body.dark-mode .feature-card:hover {
+  background: #1e293b;
+}
+
+.icon {
+  font-size: 32px;
+  margin-bottom: 20px;
+}
+
+.feature-card p {
+  color: #64748b;
+}
+
+body.dark-mode .feature-card p {
+  color: #94a3b8;
+}
+
+
+/* ================= ANIMATIONS ================= */
+
+@keyframes float {
+  from { transform: translateY(-10px); }
+  to { transform: translateY(20px); }
+}
+
+@keyframes floatCard {
+  from { transform: translateY(-8px); }
+  to { transform: translateY(12px); }
+}

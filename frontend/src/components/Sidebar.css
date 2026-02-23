@@ -1,0 +1,88 @@
+/* ================= SIDEBAR ================= */
+
+/* LIGHT DEFAULT */
+.sidebar {
+  width: 250px;
+  background: white;
+  padding: 30px 20px;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #e5e7eb;
+}
+
+/* DARK MODE */
+body.dark-mode .sidebar {
+  background: #0b1026;
+  border-right: 1px solid rgba(255,255,255,0.05);
+}
+
+
+/* ================= LOGO ================= */
+
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 40px;
+}
+
+.logo-badge {
+  width: 38px;
+  height: 38px;
+  background: linear-gradient(135deg, #6c63ff, #8a5cf6);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  color: white;
+}
+
+.brand-name {
+  font-weight: 600;
+  font-size: 16px;
+  color: #111827;
+}
+
+/* DARK MODE */
+body.dark-mode .brand-name {
+  color: #e5e7eb;
+}
+
+
+/* ================= NAVIGATION ================= */
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+}
+
+/* LIGHT DEFAULT */
+.sidebar-nav a {
+  padding: 12px 14px;
+  border-radius: 8px;
+  color: #475569;
+  text-decoration: none;
+  margin-bottom: 8px;
+  transition: 0.3s;
+}
+
+/* DARK MODE */
+body.dark-mode .sidebar-nav a {
+  color: #cbd5f5;
+}
+
+.sidebar-nav a:hover {
+  background: #f1f5f9;
+}
+
+/* DARK MODE */
+body.dark-mode .sidebar-nav a:hover {
+  background: rgba(255,255,255,0.05);
+}
+
+/* ACTIVE STATE (same in both themes) */
+.sidebar-nav a.active {
+  background: linear-gradient(135deg, #6c63ff, #8a5cf6);
+  color: white;
+}

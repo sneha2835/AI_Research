@@ -50,3 +50,4 @@ async def get_chat_history(
         },
         "messages": chats,
     }
+

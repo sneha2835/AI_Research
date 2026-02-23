@@ -81,8 +81,9 @@ async def search_papers(
     return papers
 
 # ==================================================
-# 🕘 Recently viewed
+# 🕘 Recently viewed (DEDUPED)
 # ==================================================
+from bson import ObjectId
 
 @papers_router.get("/recently-viewed")
 async def get_recently_viewed(
@@ -92,34 +93,65 @@ async def get_recently_viewed(
     views = (
         await db.recent_views.find({"user_id": current_user["_id"]})
         .sort("viewed_at", -1)
-        .limit(limit)
-        .to_list(limit)
+        .to_list(100)
     )
 
+    seen = set()
     results = []
 
     for v in views:
+        key = str(v.get("document_id") or v.get("paper_id"))
+
+        if key in seen:
+            continue
+
+        seen.add(key)
+
         item = {
             "type": v.get("type"),
             "title": v.get("title"),
             "viewed_at": v.get("viewed_at"),
         }
 
+        # ==========================
+        # 🟢 ARXIV PAPER
+        # ==========================
         if v.get("type") == "arxiv":
+
+            paper = await db.research_papers.find_one(
+                {"_id": ObjectId(v.get("paper_id"))}
+            )
+
+            if not paper:
+                continue
+
             item.update({
-                "_id": v.get("paper_id"),
-                "abstract": v.get("abstract"),
-                "published": v.get("published"),
-                "document_id": str(v.get("document_id")) if v.get("document_id") else None,
+                "_id": str(paper["_id"]),
+                "abstract": paper.get("abstract"),
+                "published": paper.get("published"),
+                "document_id": str(v.get("document_id")),
+                "pdf_url": paper.get("pdf_url")  # ✅ USE STORED URL
             })
+
+        # ==========================
+        # 🟢 UPLOADED PDF
+        # ==========================
         else:
+            doc_id = v.get("document_id")
+
             item.update({
-                "_id": str(v.get("document_id")),
+                "_id": str(doc_id),
+                "document_id": str(doc_id),
+                "pdf_url": f"http://localhost:8000/pdf_uploads/{doc_id}.pdf"
             })
 
         results.append(item)
 
+        if len(results) >= limit:
+            break
+
     return results
+
 
 # ==================================================
 # 📄 Paper details (VIEW ABSTRACT)

@@ -1,0 +1,133 @@
+/* ================= AUTH WRAPPER ================= */
+
+/* LIGHT DEFAULT */
+.auth-wrapper {
+  min-height: 100vh;
+  background: #eef2ff; /* soft light background */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* DARK MODE */
+body.dark-mode .auth-wrapper {
+  background: linear-gradient(135deg, #0b1026, #111a3d);
+}
+
+
+/* ================= AUTH CARD ================= */
+
+/* LIGHT DEFAULT */
+.auth-card {
+  width: 400px;
+  padding: 40px;
+  border-radius: 16px;
+  background: white;
+  color: #111827;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+}
+
+/* DARK MODE */
+body.dark-mode .auth-card {
+  background: rgba(20, 25, 55, 0.85);
+  color: white;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 0 60px rgba(108, 99, 255, 0.2);
+}
+
+
+/* ================= HEADINGS ================= */
+
+.auth-card h2 {
+  font-size: 28px;
+  margin-bottom: 10px;
+}
+
+/* LIGHT DEFAULT */
+.auth-sub {
+  color: #6b7280;
+  margin-bottom: 30px;
+}
+
+/* DARK MODE */
+body.dark-mode .auth-sub {
+  color: #aaa;
+}
+
+
+/* ================= FORM ================= */
+
+.auth-card form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* LIGHT DEFAULT */
+.auth-card input {
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  color: #111827;
+}
+
+/* DARK MODE */
+body.dark-mode .auth-card input {
+  border: none;
+  background: rgba(255, 255, 255, 0.06);
+  color: white;
+}
+
+.auth-card input:focus {
+  outline: 1px solid #6c63ff;
+}
+
+
+/* ================= BUTTON ================= */
+
+.auth-card button {
+  padding: 12px;
+  border-radius: 8px;
+  border: none;
+  background: linear-gradient(135deg, #6c63ff, #8a5cf6);
+  color: white;
+  font-weight: 500;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.auth-card button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(108, 99, 255, 0.4);
+}
+
+
+/* ================= ERROR ================= */
+
+.auth-error {
+  background: rgba(255, 0, 0, 0.15);
+  padding: 10px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+}
+
+
+/* ================= FOOTER ================= */
+
+/* LIGHT DEFAULT */
+.auth-footer {
+  margin-top: 20px;
+  font-size: 14px;
+  color: #6b7280;
+}
+
+/* DARK MODE */
+body.dark-mode .auth-footer {
+  color: #aaa;
+}
+
+.auth-footer a {
+  color: #6c63ff;
+  text-decoration: none;
+}

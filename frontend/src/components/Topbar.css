@@ -1,0 +1,75 @@
+/* ================= TOPBAR ================= */
+
+/* LIGHT DEFAULT */
+.topbar {
+  height: 70px;
+  background: white;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 30px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+/* DARK MODE */
+body.dark-mode .topbar {
+  background: linear-gradient(135deg, #0f172a, #1e1b4b);
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+
+/* ================= LEFT ================= */
+
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo-badge {
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, #6c63ff, #8a5cf6);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  color: white;
+}
+
+.brand-name {
+  font-weight: 600;
+  color: #111827;
+}
+
+/* DARK MODE */
+body.dark-mode .brand-name {
+  color: #e5e7eb;
+}
+
+
+/* ================= RIGHT ================= */
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+
+/* LOGOUT BUTTON (same in both themes) */
+.topbar button {
+  background: #ef4444;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  color: white;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.topbar button:hover {
+  transform: translateY(-1px);
+  opacity: 0.9;
+}
