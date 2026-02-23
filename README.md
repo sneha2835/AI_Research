@@ -1,4 +1,5 @@
 
+
 # 🧠 AI Research Companion
 
 AI-powered research assistant for scientific literature review, PDF analysis, and grounded Q&A with citation support.
@@ -20,7 +21,7 @@ AI-powered research assistant for scientific literature review, PDF analysis, an
 
 ---
 
-## 🏗 Architecture
+# 🏗 Architecture
 
 ```
 Frontend (React + Vite)
@@ -36,9 +37,9 @@ Transformers (LLM + Embeddings)
 
 ---
 
-## 📦 Tech Stack
+# 📦 Tech Stack
 
-### 🖥 Backend
+## 🖥 Backend
 
 * FastAPI
 * MongoDB (Motor async)
@@ -49,7 +50,7 @@ Transformers (LLM + Embeddings)
 * JWT (python-jose)
 * Google OAuth
 
-### 🌐 Frontend
+## 🌐 Frontend
 
 * React 19
 * Vite
@@ -64,7 +65,7 @@ Transformers (LLM + Embeddings)
 
 ---
 
-## 🔹 1️⃣ Clone the Repository
+# 🔹 1️⃣ Clone the Repository
 
 ```bash
 git clone https://github.com/sneha2835/AI_Research.git
@@ -101,17 +102,23 @@ source venv/bin/activate
 
 ---
 
-## 🔹 3️⃣ Install Dependencies
+## 🔹 3️⃣ Install Backend Dependencies
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements_backend.txt
 ```
 
 ---
 
-## 🔹 4️⃣ Configure Environment Variables
+## 🔹 4️⃣ Backend Environment Variables
 
-Create a `.env` file inside `backend/`:
+Create this file:
+
+```
+backend/.env
+```
+
+Add:
 
 ```
 MONGO_URL=your_mongodb_connection_string
@@ -137,10 +144,16 @@ uvicorn app.main:app --reload
 ```
 
 Backend runs at:
-👉 [http://127.0.0.1:8000](http://127.0.0.1:8000)
+
+```
+http://127.0.0.1:8000
+```
 
 Swagger docs:
-👉 [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+
+```
+http://127.0.0.1:8000/docs
+```
 
 ---
 
@@ -148,7 +161,9 @@ Swagger docs:
 
 ---
 
-## 🔹 6️⃣ Install Dependencies
+## 🔹 6️⃣ Install Frontend Dependencies
+
+Open a new terminal:
 
 ```bash
 cd frontend
@@ -157,28 +172,53 @@ npm install
 
 ---
 
-## 🔹 7️⃣ Run Frontend
+## 🔹 7️⃣ Frontend Environment Variables
+
+Create this file:
+
+```
+frontend/.env
+```
+
+Add:
+
+```
+VITE_API_BASE_URL=http://localhost:8000
+```
+
+⚠ Important: All Vite environment variables must start with `VITE_`
+
+---
+
+## 🔹 8️⃣ Run Frontend
 
 ```bash
 npm run dev
 ```
 
 Frontend runs at:
-👉 [http://localhost:5173](http://localhost:5173)
+
+```
+http://localhost:5173
+```
 
 ---
 
 # 🔐 Google OAuth Setup
 
-1. Go to **Google Cloud Console**
-2. Create **OAuth 2.0 Client ID**
-3. Add authorized redirect URI:
+1. Go to Google Cloud Console
+2. Create OAuth 2.0 Client ID
+3. Add Authorized Redirect URI:
 
 ```
 http://127.0.0.1:8000/auth/google/callback
 ```
 
-4. Add credentials to backend `.env`
+4. Add the credentials inside:
+
+```
+backend/.env
+```
 
 ---
 
@@ -191,12 +231,14 @@ AI_Research/
 │   ├── app/
 │   ├── routers/
 │   ├── services/
-│   └── requirements.txt
+│   ├── requirements_backend.txt
+│   └── .env
 │
 ├── frontend/
 │   ├── src/
 │   ├── package.json
-│   └── vite.config.js
+│   ├── vite.config.js
+│   └── .env
 │
 └── README.md
 ```
@@ -231,7 +273,7 @@ npm run dev
 
 🚧 Hybrid retrieval (planned)
 🚧 Cross-encoder reranking (planned)
-🚧 Advanced citation engine (planned)
+🚧 Structured citation engine (planned)
 
 ---
 
@@ -245,3 +287,4 @@ npm run dev
 * Dockerized Deployment
 
 ---
+
