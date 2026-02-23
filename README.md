@@ -1,34 +1,247 @@
-# Research AI Companion
 
-A local-first, privacy-preserving AI assistant for scientific papers. Upload PDFs, chat with papers, summarize, annotate, manage citations, and get recommendations—fully offline and open-source.
+# 🧠 AI Research Companion
 
-## Tech Stack
+AI-powered research assistant for scientific literature review, PDF analysis, and grounded Q&A with citation support.
 
-- **Backend:** FastAPI (Python), MongoDB, Chroma, GROBID, Ollama
-- **Frontend:** React (Vite+TypeScript), Tailwind CSS, PDF.js
-- **AI Models:** phi-3, llama3, scibert, bge/specter2 for embeddings
+---
 
-## Project Structure
+## 🚀 Features
 
-research/
+* 🔐 JWT Authentication (Email/Password)
+* 🔑 Google OAuth Login
+* 📄 PDF Upload & Processing
+* 🔎 arXiv Paper Search
+* 💬 Context-Grounded Q&A
+* 📊 Dashboard with Usage Stats
+* 📚 Persistent Chat History
+* 🧠 Vector Search (ChromaDB)
+* 🗂 MongoDB Backend
+* 🎨 React + Vite Frontend
+
+---
+
+## 🏗 Architecture
+
+```
+Frontend (React + Vite)
+        ↓
+FastAPI Backend
+        ↓
+MongoDB (Users, Chat, Metadata)
+        ↓
+ChromaDB (Vector Storage)
+        ↓
+Transformers (LLM + Embeddings)
+```
+
+---
+
+## 📦 Tech Stack
+
+### 🖥 Backend
+
+* FastAPI
+* MongoDB (Motor async)
+* ChromaDB
+* Transformers
+* Sentence Transformers
+* Argon2 Password Hashing
+* JWT (python-jose)
+* Google OAuth
+
+### 🌐 Frontend
+
+* React 19
+* Vite
+* React Router
+* Axios
+* jsPDF
+* Framer Motion
+
+---
+
+# 🛠 Installation Guide
+
+---
+
+## 🔹 1️⃣ Clone the Repository
+
+```bash
+git clone https://github.com/sneha2835/AI_Research.git
+cd AI_Research
+git checkout resolve_f
+```
+
+---
+
+# 🖥 Backend Setup
+
+---
+
+## 🔹 2️⃣ Create Virtual Environment
+
+```bash
+cd backend
+python -m venv venv
+```
+
+### Activate
+
+**Windows**
+
+```bash
+venv\Scripts\activate
+```
+
+**Mac/Linux**
+
+```bash
+source venv/bin/activate
+```
+
+---
+
+## 🔹 3️⃣ Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+## 🔹 4️⃣ Configure Environment Variables
+
+Create a `.env` file inside `backend/`:
+
+```
+MONGO_URL=your_mongodb_connection_string
+DB_NAME=ai_research
+
+JWT_SECRET=your_secret_key
+JWT_ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=60
+
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+GOOGLE_REDIRECT_URI=http://127.0.0.1:8000/auth/google/callback
+
+FRONTEND_URL=http://localhost:5173
+```
+
+---
+
+## 🔹 5️⃣ Run Backend
+
+```bash
+uvicorn app.main:app --reload
+```
+
+Backend runs at:
+👉 [http://127.0.0.1:8000](http://127.0.0.1:8000)
+
+Swagger docs:
+👉 [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+
+---
+
+# 🌐 Frontend Setup
+
+---
+
+## 🔹 6️⃣ Install Dependencies
+
+```bash
+cd frontend
+npm install
+```
+
+---
+
+## 🔹 7️⃣ Run Frontend
+
+```bash
+npm run dev
+```
+
+Frontend runs at:
+👉 [http://localhost:5173](http://localhost:5173)
+
+---
+
+# 🔐 Google OAuth Setup
+
+1. Go to **Google Cloud Console**
+2. Create **OAuth 2.0 Client ID**
+3. Add authorized redirect URI:
+
+```
+http://127.0.0.1:8000/auth/google/callback
+```
+
+4. Add credentials to backend `.env`
+
+---
+
+# 📂 Project Structure
+
+```
+AI_Research/
+│
 ├── backend/
+│   ├── app/
+│   ├── routers/
+│   ├── services/
+│   └── requirements.txt
+│
 ├── frontend/
-├── models/
-├── vector_db/
-├── grobid/
-├── docker-compose.yml
-├── .env
+│   ├── src/
+│   ├── package.json
+│   └── vite.config.js
+│
+└── README.md
+```
 
+---
 
-## Features
+# 🧪 Development Workflow
 
-- Secure user authentication
-- PDF upload, parsing, and semantic search
-- Instant AI summary & RAG “Ask This Paper” chat
-- Named entity recognition, citation extraction/export
-- Research recommendations
-- Local, containerized deployment (Docker)
+### Start Backend
 
-## Quick Start
+```bash
+cd backend
+uvicorn app.main:app --reload
+```
 
-TBA...
+### Start Frontend
+
+```bash
+cd frontend
+npm run dev
+```
+
+---
+
+# 📌 Current Status
+
+✅ Authentication complete
+✅ Google OAuth integrated
+✅ Vector search working
+✅ Chat persistence implemented
+✅ PDF + arXiv ingestion working
+
+🚧 Hybrid retrieval (planned)
+🚧 Cross-encoder reranking (planned)
+🚧 Advanced citation engine (planned)
+
+---
+
+# 🧠 Roadmap
+
+* Hybrid Retrieval (BM25 + Semantic)
+* Cross-Encoder Reranking
+* Structured Citation Engine
+* Section-Aware Summarization
+* Hierarchical Summarization
+* Dockerized Deployment
+
+---
