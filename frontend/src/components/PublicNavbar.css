@@ -20,7 +20,7 @@
 }
 
 /* DARK MODE */
-body.dark-mode .public-nav {
+.dark .public-nav {
   background: linear-gradient(
     to bottom,
     rgba(5, 15, 40, 0.95),
@@ -77,11 +77,11 @@ body.dark-mode .public-nav {
 }
 
 /* DARK MODE */
-body.dark-mode .nav-login {
+.dark .nav-login {
   color: #ccc;
 }
 
-body.dark-mode .nav-login:hover {
+.dark .nav-login:hover {
   color: white;
 }
 

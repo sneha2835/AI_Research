@@ -1,10 +1,12 @@
 import { useAuth } from "../auth/AuthContext";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useContext } from "react";
+import { ThemeContext } from "../theme/ThemeContext";
 import api from "../api/api";
 import "./Dashboard.css";
 
 export default function Profile() {
   const { user, logout } = useAuth();
+  const { theme, setTheme } = useContext(ThemeContext);
 
   const [stats, setStats] = useState({
     uploads: 0,
@@ -14,7 +16,6 @@ export default function Profile() {
 
   const [name, setName] = useState(user?.name || "");
   const [birthday, setBirthday] = useState("");
-  const [theme, setTheme] = useState("light"); // Default is light
 
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -24,6 +25,8 @@ export default function Profile() {
     loadStats();
   }, []);
 
+  /* ================= LOAD PROFILE ================= */
+
   const loadProfile = async () => {
     try {
       const res = await api.get("/users/me");
@@ -31,17 +34,8 @@ export default function Profile() {
       setName(res.data.name || "");
       setBirthday(res.data.birthday || "");
 
-      const savedTheme = res.data.theme || "light";
-      setTheme(savedTheme);
-
-      if (savedTheme === "dark") {
-        document.body.classList.add("dark-mode");
-        localStorage.setItem("theme", "dark");
-      } else {
-        document.body.classList.remove("dark-mode");
-        localStorage.setItem("theme", "light");
-      }
-
+      // ❌ DO NOT setTheme here
+      // Theme is controlled ONLY by ThemeContext
     } catch (err) {
       console.error("Profile load failed", err);
     }
@@ -69,13 +63,11 @@ export default function Profile() {
       await api.put("/users/me", {
         name,
         birthday,
-        theme,
       });
 
       alert("Profile updated successfully!");
-      loadProfile();
     } catch (err) {
-      alert("Failed to update profile.");
+      alert(err.response?.data?.detail || "Failed to update profile.");
     }
   };
 
@@ -83,15 +75,9 @@ export default function Profile() {
 
   const toggleTheme = async () => {
     const newTheme = theme === "dark" ? "light" : "dark";
+
+    // update UI immediately
     setTheme(newTheme);
-
-    if (newTheme === "dark") {
-      document.body.classList.add("dark-mode");
-    } else {
-      document.body.classList.remove("dark-mode");
-    }
-
-    localStorage.setItem("theme", newTheme);
 
     try {
       await api.put("/users/me", { theme: newTheme });
@@ -117,7 +103,6 @@ export default function Profile() {
       alert("Password updated successfully!");
       setOldPassword("");
       setNewPassword("");
-
     } catch (err) {
       alert(err.response?.data?.detail || "Password change failed.");
     }
@@ -162,7 +147,6 @@ export default function Profile() {
 
   return (
     <div>
-
       <h1 className="dashboard-title">My Profile</h1>
 
       {/* ===== PERSONAL INFO ===== */}
@@ -181,10 +165,7 @@ export default function Profile() {
           }
         />
 
-        <SettingRow
-          label="Email"
-          action={<span>{user?.email}</span>}
-        />
+        <SettingRow label="Email" action={<span>{user?.email}</span>} />
 
         <SettingRow
           label="Birthday"

@@ -14,6 +14,9 @@ export default function Register() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const API_BASE =
+    import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -21,7 +24,7 @@ export default function Register() {
 
     try {
       await register(name, email, password);
-      navigate("/login"); // Redirect after successful registration
+      navigate("/login");
     } catch (err) {
       setError(
         err?.response?.data?.detail ||
@@ -30,6 +33,11 @@ export default function Register() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // ✅ Same Google handler as Login
+  const handleGoogleRegister = () => {
+    window.location.href = `${API_BASE}/auth/google/login`;
   };
 
   return (
@@ -72,6 +80,15 @@ export default function Register() {
 
             <button type="submit" disabled={loading}>
               {loading ? "Creating account..." : "Register"}
+            </button>
+
+            {/* ✅ Google button added here */}
+            <button
+              type="button"
+              onClick={handleGoogleRegister}
+              style={{ marginTop: "12px" }}
+            >
+              Sign up with Google
             </button>
           </form>
 

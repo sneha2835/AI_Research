@@ -9,7 +9,7 @@
 }
 
 /* DARK MODE */
-body.dark-mode .layout {
+.dark .layout {
   background: linear-gradient(
     135deg,
     #0b1026,
@@ -19,6 +19,7 @@ body.dark-mode .layout {
   color: #e5e7eb;
 }
 
+
 /* ================= MAIN ================= */
 
 .main {
@@ -26,6 +27,7 @@ body.dark-mode .layout {
   display: flex;
   flex-direction: column;
 }
+
 
 /* ================= CONTENT ================= */
 

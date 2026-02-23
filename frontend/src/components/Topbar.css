@@ -12,7 +12,7 @@
 }
 
 /* DARK MODE */
-body.dark-mode .topbar {
+.dark .topbar {
   background: linear-gradient(135deg, #0f172a, #1e1b4b);
   border-bottom: 1px solid rgba(255,255,255,0.05);
 }
@@ -44,7 +44,7 @@ body.dark-mode .topbar {
 }
 
 /* DARK MODE */
-body.dark-mode .brand-name {
+.dark .brand-name {
   color: #e5e7eb;
 }
 

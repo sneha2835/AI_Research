@@ -7,7 +7,7 @@
 }
 
 /* DARK MODE */
-body.dark-mode .pdf-page {
+.dark .pdf-page {
   color: white;
 }
 
@@ -22,7 +22,6 @@ body.dark-mode .pdf-page {
 
 /* ================= UPLOAD BOX ================= */
 
-/* LIGHT DEFAULT */
 .upload-box {
   background: white;
   padding: 30px;
@@ -32,8 +31,7 @@ body.dark-mode .pdf-page {
   box-shadow: 0 8px 25px rgba(0,0,0,0.05);
 }
 
-/* DARK MODE */
-body.dark-mode .upload-box {
+.dark .upload-box {
   background: rgba(255,255,255,0.05);
   border: 1px solid rgba(255,255,255,0.08);
   backdrop-filter: blur(12px);
@@ -43,8 +41,7 @@ body.dark-mode .upload-box {
   margin-bottom: 20px;
 }
 
-/* DARK MODE input */
-body.dark-mode .upload-box input {
+.dark .upload-box input {
   color: white;
 }
 
@@ -77,7 +74,6 @@ body.dark-mode .upload-box input {
 
 /* ================= PDF CARD ================= */
 
-/* LIGHT DEFAULT */
 .pdf-card {
   background: white;
   border-radius: 18px;
@@ -88,8 +84,7 @@ body.dark-mode .upload-box input {
   color: #111827;
 }
 
-/* DARK MODE */
-body.dark-mode .pdf-card {
+.dark .pdf-card {
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.06);
   backdrop-filter: blur(15px);
@@ -101,7 +96,7 @@ body.dark-mode .pdf-card {
   border-color: #7f5af0;
 }
 
-body.dark-mode .pdf-card:hover {
+.dark .pdf-card:hover {
   background: rgba(255,255,255,0.08);
 }
 
@@ -150,9 +145,7 @@ body.dark-mode .pdf-card:hover {
   color: white;
 }
 
-/* Chat */
-
-/* LIGHT DEFAULT */
+/* Chat - LIGHT DEFAULT */
 .pdf-actions button:nth-child(2) {
   background: #f1f5f9;
   color: #111827;
@@ -160,7 +153,7 @@ body.dark-mode .pdf-card:hover {
 }
 
 /* DARK MODE */
-body.dark-mode .pdf-actions button:nth-child(2) {
+.dark .pdf-actions button:nth-child(2) {
   background: #1e293b;
   color: white;
   border: 1px solid #334155;

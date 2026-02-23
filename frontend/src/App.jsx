@@ -12,11 +12,12 @@ import Profile from "./pages/Profile";
 import Landing from "./pages/Landing";
 import ResumeChat from "./pages/ResumeChat";
 import OAuthSuccess from "./pages/OAuthSuccess";
-
+import { ThemeProvider } from "./theme/ThemeContext";
 
 export default function App() {
   return (
     <AuthProvider>
+      <ThemeProvider>
       <BrowserRouter>
         <Routes>
 
@@ -83,6 +84,7 @@ export default function App() {
 
         </Routes>
       </BrowserRouter>
+      </ThemeProvider>
     </AuthProvider>
   );
 }

@@ -6,6 +6,7 @@
   box-sizing: border-box;
 }
 
+
 /* ================= GLOBAL BODY ================= */
 
 /* LIGHT DEFAULT */
@@ -17,7 +18,7 @@ body {
 }
 
 /* DARK MODE */
-body.dark-mode {
+.dark body {
   background: linear-gradient(135deg, #0f172a, #111827, #0b1120);
   color: white;
 }
@@ -38,7 +39,7 @@ body.dark-mode {
   align-items: center;
   justify-content: space-between;
   margin-top: 80px;
-  padding: 0 80px; /* moved horizontal spacing here */
+  padding: 0 80px;
   gap: 60px;
 }
 
@@ -65,7 +66,7 @@ body.dark-mode {
   max-width: 500px;
 }
 
-body.dark-mode .hero-sub {
+.dark .hero-sub {
   color: #94a3b8;
 }
 
@@ -92,7 +93,7 @@ body.dark-mode .hero-sub {
   cursor: pointer;
 }
 
-body.dark-mode .btn-secondary {
+.dark .btn-secondary {
   border: 1px solid #334155;
   color: white;
 }
@@ -111,7 +112,7 @@ body.dark-mode .btn-secondary {
   display: none;
 }
 
-body.dark-mode .motion-glow {
+.dark .motion-glow {
   display: block;
   position: absolute;
   width: 400px;
@@ -131,7 +132,7 @@ body.dark-mode .motion-glow {
   animation: floatCard 6s ease-in-out infinite alternate;
 }
 
-body.dark-mode .motion-card {
+.dark .motion-card {
   background: #0f172a;
   box-shadow: 0 0 40px rgba(99,102,241,0.4);
 }
@@ -159,7 +160,7 @@ body.dark-mode .motion-card {
   margin-bottom: 15px;
 }
 
-body.dark-mode .card-search {
+.dark .card-search {
   background: #1e293b;
 }
 
@@ -169,7 +170,7 @@ body.dark-mode .card-search {
   margin-bottom: 15px;
 }
 
-body.dark-mode .card-body p {
+.dark .card-body p {
   color: #94a3b8;
 }
 
@@ -189,7 +190,7 @@ body.dark-mode .card-body p {
   margin-top: 120px;
   display: flex;
   gap: 40px;
-  padding: 0 80px; /* match hero padding */
+  padding: 0 80px;
 }
 
 .feature-card {
@@ -201,7 +202,7 @@ body.dark-mode .card-body p {
   box-shadow: 0 8px 25px rgba(0,0,0,0.05);
 }
 
-body.dark-mode .feature-card {
+.dark .feature-card {
   background: #111827;
 }
 
@@ -209,7 +210,7 @@ body.dark-mode .feature-card {
   transform: translateY(-8px);
 }
 
-body.dark-mode .feature-card:hover {
+.dark .feature-card:hover {
   background: #1e293b;
 }
 
@@ -222,7 +223,7 @@ body.dark-mode .feature-card:hover {
   color: #64748b;
 }
 
-body.dark-mode .feature-card p {
+.dark .feature-card p {
   color: #94a3b8;
 }
 

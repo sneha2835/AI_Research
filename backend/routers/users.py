@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Body, HTTPException
 from bson import ObjectId
-from typing import List
 from datetime import datetime
+from typing import List
 
 from app.auth import get_current_user, get_password_hash, verify_password
 from app.db import db
@@ -17,10 +17,12 @@ users_router = APIRouter(prefix="/users", tags=["Users"])
 @users_router.get("/me", response_model=UserRead)
 async def get_my_profile(current_user: dict = Depends(get_current_user)):
 
-    user = await db.users.find_one({"_id": current_user["_id"]})
+    user_id = ObjectId(current_user["_id"])
+
+    user = await db.users.find_one({"_id": user_id})
 
     if not user:
-        raise HTTPException(404, "User not found")
+        raise HTTPException(status_code=404, detail="User not found")
 
     user["_id"] = str(user["_id"])
     user.pop("password", None)
@@ -40,10 +42,10 @@ async def update_profile(
 
     update_fields = {}
 
-    # Name
+    # Validate Name
     if "name" in payload:
         if not payload["name"].strip():
-            raise HTTPException(400, "Name cannot be empty")
+            raise HTTPException(status_code=400, detail="Name cannot be empty")
         update_fields["name"] = payload["name"].strip()
 
     # Birthday
@@ -53,19 +55,24 @@ async def update_profile(
     # Theme
     if "theme" in payload:
         if payload["theme"] not in ["light", "dark"]:
-            raise HTTPException(400, "Theme must be 'light' or 'dark'")
+            raise HTTPException(status_code=400, detail="Theme must be 'light' or 'dark'")
         update_fields["theme"] = payload["theme"]
 
     if not update_fields:
-        raise HTTPException(400, "No valid fields provided")
+        raise HTTPException(status_code=400, detail="No valid fields provided")
 
-    await db.users.update_one(
-        {"_id": current_user["_id"]},
+    user_id = ObjectId(current_user["_id"])  # 🔥 critical fix
+
+    result = await db.users.update_one(
+        {"_id": user_id},
         {"$set": update_fields}
     )
 
-    # Return updated profile
-    updated_user = await db.users.find_one({"_id": current_user["_id"]})
+    if result.modified_count == 0:
+        raise HTTPException(status_code=400, detail="Profile update failed")
+
+    updated_user = await db.users.find_one({"_id": user_id})
+
     updated_user["_id"] = str(updated_user["_id"])
     updated_user.pop("password", None)
 
@@ -89,20 +96,25 @@ async def change_password(
     new_password = payload.get("new_password")
 
     if not old_password or not new_password:
-        raise HTTPException(400, "Old and new passwords are required")
+        raise HTTPException(status_code=400, detail="Old and new passwords are required")
 
     if len(new_password) < 6:
-        raise HTTPException(400, "New password must be at least 6 characters")
+        raise HTTPException(status_code=400, detail="New password must be at least 6 characters")
 
-    user = await db.users.find_one({"_id": current_user["_id"]})
+    user_id = ObjectId(current_user["_id"])
+
+    user = await db.users.find_one({"_id": user_id})
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
 
     if not verify_password(old_password, user["password"]):
-        raise HTTPException(400, "Old password is incorrect")
+        raise HTTPException(status_code=400, detail="Old password is incorrect")
 
     hashed_password = get_password_hash(new_password)
 
     await db.users.update_one(
-        {"_id": current_user["_id"]},
+        {"_id": user_id},
         {"$set": {"password": hashed_password}}
     )
 
@@ -110,13 +122,13 @@ async def change_password(
 
 
 # ==================================================
-# 🗑️ DELETE MY ACCOUNT (SAFE CLEAN DELETE)
+# 🗑️ DELETE MY ACCOUNT
 # ==================================================
 
 @users_router.delete("/me")
 async def delete_my_account(current_user: dict = Depends(get_current_user)):
 
-    user_id = ObjectId(current_user["_id"])  # 🔥 FIX
+    user_id = ObjectId(current_user["_id"])
 
     await db.users.delete_one({"_id": user_id})
     await db.documents.delete_many({"owner": user_id})
@@ -125,15 +137,18 @@ async def delete_my_account(current_user: dict = Depends(get_current_user)):
 
     return {"message": "Account deleted successfully"}
 
+
 # ==================================================
-# 📦 EXPORT ALL CHAT HISTORY
+# 📦 EXPORT CHAT HISTORY
 # ==================================================
 
 @users_router.get("/export-history")
 async def export_chat_history(current_user: dict = Depends(get_current_user)):
 
+    user_id = ObjectId(current_user["_id"])
+
     chats = await db.chat_history.find(
-        {"user_id": current_user["_id"]}
+        {"user_id": user_id}
     ).sort("timestamp", 1).to_list(5000)
 
     export_data = []

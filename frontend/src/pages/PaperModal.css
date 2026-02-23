@@ -29,7 +29,7 @@
 }
 
 /* DARK MODE */
-body.dark-mode .analysis-box {
+.dark .analysis-box {
   background: rgba(255,255,255,0.06);
   border: none;
   color: #e5e7eb;
@@ -67,7 +67,7 @@ body.dark-mode .analysis-box {
 }
 
 /* DARK MODE */
-body.dark-mode .chat-message.assistant {
+.dark .chat-message.assistant {
   background: rgba(255,255,255,0.08);
   color: #e5e7eb;
   border: none;
