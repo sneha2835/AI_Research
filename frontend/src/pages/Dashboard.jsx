@@ -4,7 +4,8 @@ import { useNavigate } from "react-router-dom";
 import api from "../api/api";
 import "./Dashboard.css";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+const API_BASE =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -39,25 +40,22 @@ export default function Dashboard() {
       const statsRes = await api.get("/dashboard/stats");
 
       let publishedData = [];
+
       try {
         const publishedRes = await api.get("/papers/recent");
         publishedData = publishedRes.data || [];
       } catch {}
 
-      const uploadsData = uploadsRes.data || [];
-      const viewedData = viewedRes.data || [];
-
-      setUploads(uploadsData);
-      setViewed(viewedData);
+      setUploads(uploadsRes.data || []);
+      setViewed(viewedRes.data || []);
       setPublished(publishedData);
 
       setStats({
-        uploads: uploadsData.length,
-        analyzed: viewedData.length,
-        chats: statsRes.data.chatCount || 0,
-        summaries: statsRes.data.summaryCount || 0,
+        uploads: statsRes.data?.uploads || 0,
+        analyzed: statsRes.data?.analyzed || 0,
+        chats: statsRes.data?.chatCount || 0,
+        summaries: statsRes.data?.summaryCount || 0,
       });
-
     } catch (err) {
       console.error("Dashboard load failed:", err);
     } finally {
@@ -75,27 +73,46 @@ export default function Dashboard() {
     }
 
     navigate(`/resume-chat/${documentId}`, {
-      state: { title }
+      state: { title },
     });
   };
 
-  if (loading) return <div style={{ padding: "30px" }}>Loading dashboard...</div>;
+  // FIXED LINK BUILDER
+  const buildViewedLink = (paper) => {
+    if (paper?.pdf_url) return paper.pdf_url;
+
+    if (paper?.document_id)
+      return `${API_BASE}/pdf_uploads/${paper.document_id}.pdf`;
+
+    return null;
+  };
+
+  if (loading) {
+    return <div style={{ padding: "30px" }}>Loading dashboard...</div>;
+  }
 
   return (
     <div>
-
       <h1 className="dashboard-title">
         Welcome, {user?.name || user?.email?.split("@")[0]}!
       </h1>
 
-      <p className="dashboard-sub">
-        Your Research Control Panel
-      </p>
+      <p className="dashboard-sub">Your Research Control Panel</p>
 
-      {/* ===== STATS ===== */}
+      {/* STATS */}
       <div className="stats-grid">
-        <StatCard title="PDFs Uploaded" value={stats.uploads} onClick={() => setActiveTab("uploads")} />
-        <StatCard title="Papers Analyzed" value={stats.analyzed} onClick={() => setActiveTab("analyzed")} />
+        <StatCard
+          title="PDFs Uploaded"
+          value={stats.uploads}
+          onClick={() => setActiveTab("uploads")}
+        />
+
+        <StatCard
+          title="Papers Analyzed"
+          value={stats.analyzed}
+          onClick={() => setActiveTab("analyzed")}
+        />
+
         <StatCard
           title="Chat Sessions"
           value={stats.chats}
@@ -105,6 +122,7 @@ export default function Dashboard() {
             setActiveTab("chats");
           }}
         />
+
         <StatCard
           title="AI Summaries"
           value={stats.summaries}
@@ -117,19 +135,29 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* ===== QUICK ACTIONS ===== */}
+      {/* QUICK ACTIONS */}
       <div className="dashboard-panel">
         <h2 className="panel-title">Quick Actions</h2>
+
         <div className="actions-row">
-          <button className="analyze-btn" onClick={() => navigate("/pdfs")}>Upload PDF</button>
-          <button className="analyze-btn" onClick={() => navigate("/papers")}>Search Papers</button>
-          <button className="analyze-btn" onClick={handleContinueLastSession}>Continue Last Session</button>
+          <button className="analyze-btn" onClick={() => navigate("/pdfs")}>
+            Upload PDF
+          </button>
+
+          <button className="analyze-btn" onClick={() => navigate("/papers")}>
+            Search Papers
+          </button>
+
+          <button className="analyze-btn" onClick={handleContinueLastSession}>
+            Continue Last Session
+          </button>
         </div>
       </div>
 
-      {/* ===== RECENT UPLOADS ===== */}
+      {/* RECENT UPLOADS */}
       <div className="dashboard-panel">
         <h2 className="panel-title">Recent Uploads</h2>
+
         {uploads.length === 0 ? (
           <p>No uploads yet.</p>
         ) : (
@@ -147,39 +175,37 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* ===== RECENTLY VIEWED ===== */}
+      {/* RECENTLY VIEWED */}
       <div className="dashboard-panel">
         <h2 className="panel-title">Recently Viewed Papers</h2>
+
         {viewed.length === 0 ? (
           <p>No recently viewed papers.</p>
         ) : (
-          viewed.slice(0, 5).map((p, i) => {
-            let filePath = "";
+          viewed.slice(0, 5).map((paper, i) => {
+            const filePath = buildViewedLink(paper);
 
-            if (p.type === "arxiv") {
-              filePath = p.pdf_url;
-            } else if (p.type === "upload") {
-              filePath = `${API_BASE}/pdf_uploads/${p.document_id}.pdf`;
-            }
+            if (!filePath) return null;
 
             return (
               <a
-                key={p._id || i}
+                key={paper._id || i}
                 href={filePath}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="dashboard-item"
               >
-                {p.title}
+                {paper.title}
               </a>
             );
           })
         )}
       </div>
 
-      {/* ===== RECENTLY PUBLISHED ===== */}
+      {/* RECENTLY PUBLISHED */}
       <div className="dashboard-panel">
         <h2 className="panel-title">Recently Published Papers</h2>
+
         {published.length === 0 ? (
           <p>No recent publications available.</p>
         ) : (
@@ -197,11 +223,10 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* ===== OVERLAY ===== */}
+      {/* OVERLAY */}
       {activeTab && (
         <div className="overlay">
           <div className="overlay-content">
-
             <div className="overlay-header">
               <h2>
                 {activeTab === "uploads" && "Uploaded PDFs"}
@@ -222,15 +247,18 @@ export default function Dashboard() {
             </div>
 
             <div className="overlay-body">
-
               {activeTab === "uploads" &&
                 uploads.map((u) => (
-                  <div key={u._id} className="list-item">{u.title}</div>
+                  <div key={u._id} className="list-item">
+                    {u.title}
+                  </div>
                 ))}
 
               {activeTab === "analyzed" &&
                 viewed.map((p, i) => (
-                  <div key={i} className="list-item">{p.title}</div>
+                  <div key={i} className="list-item">
+                    {p.title}
+                  </div>
                 ))}
 
               {activeTab === "chats" &&
@@ -240,7 +268,7 @@ export default function Dashboard() {
                     className="list-item clickable"
                     onClick={() =>
                       navigate(`/resume-chat/${session.document_id}`, {
-                        state: { title: session.title }
+                        state: { title: session.title },
                       })
                     }
                   >
@@ -251,7 +279,10 @@ export default function Dashboard() {
               {activeTab === "summaries" &&
                 (selectedSummary ? (
                   <div>
-                    <button className="analyze-btn" onClick={() => setSelectedSummary(null)}>
+                    <button
+                      className="analyze-btn"
+                      onClick={() => setSelectedSummary(null)}
+                    >
                       ← Back
                     </button>
 
@@ -259,9 +290,7 @@ export default function Dashboard() {
                       {selectedSummary.title}
                     </h3>
 
-                    <p style={{ whiteSpace: "pre-wrap" }}>
-                      {selectedSummary.content}
-                    </p>
+                    <StructuredSummary text={selectedSummary.content} />
                   </div>
                 ) : (
                   summaryList.map((s) => (
@@ -274,12 +303,10 @@ export default function Dashboard() {
                     </div>
                   ))
                 ))}
-
             </div>
           </div>
         </div>
       )}
-
     </div>
   );
 }
@@ -289,6 +316,60 @@ function StatCard({ title, value, onClick }) {
     <div className="stat-card clickable" onClick={onClick}>
       <div className="stat-value">{value}</div>
       <div className="stat-title">{title}</div>
+    </div>
+  );
+}
+
+function StructuredSummary({ text }) {
+  if (!text) return null;
+
+  const sections = {};
+  let currentSection = null;
+
+  const sectionMap = {
+    objective: "Objective",
+    problem: "Problem Being Addressed",
+    methodology: "Methodology",
+    method: "Methodology",
+    findings: "Key Findings",
+    conclusion: "Conclusion",
+    limitations: "Limitations",
+  };
+
+  text.split("\n").forEach((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+
+    const lower = trimmed.toLowerCase();
+    const matched = Object.keys(sectionMap).find((key) =>
+      lower.startsWith(key)
+    );
+
+    if (matched) {
+      currentSection = sectionMap[matched];
+      sections[currentSection] = trimmed.replace(/^[^:]*:/, "").trim();
+    } else if (currentSection) {
+      sections[currentSection] += " " + trimmed;
+    }
+  });
+
+  return (
+    <div style={{ marginTop: "20px" }}>
+      {Object.entries(sections).map(([title, content], i) => (
+        <div
+          key={i}
+          style={{
+            background: "#f8f9fc",
+            padding: "18px",
+            borderRadius: "10px",
+            marginBottom: "20px",
+            borderLeft: "4px solid #2c6ef2",
+          }}
+        >
+          <h4 style={{ marginBottom: "8px" }}>{title}</h4>
+          <p style={{ margin: 0, lineHeight: "1.6" }}>{content}</p>
+        </div>
+      ))}
     </div>
   );
 }

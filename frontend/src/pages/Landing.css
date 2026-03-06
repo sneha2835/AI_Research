@@ -7,6 +7,7 @@ body {
   background: #f5f7fb;
   color: #111827;
   overflow-x: hidden;
+  position: relative;
 }
 
 /* DARK MODE */
@@ -186,4 +187,61 @@ body {
 .feature-icon {
   font-size: 30px;
   margin-bottom: 10px;
+}
+
+
+/* ================= DEMO MODAL ================= */
+
+.demo-overlay{
+  position: fixed;
+  top:0;
+  left:0;
+  width:100vw;
+  height:100vh;
+
+  display:flex;
+  justify-content:center;
+  align-items:center;
+
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(10px);
+
+  z-index: 2147483647; /* force above everything */
+}
+
+.demo-modal{
+  position: relative;
+
+  width: 70%;
+  max-width: 900px;
+
+  background: #000;
+  border-radius: 12px;
+
+  padding: 10px;
+
+  box-shadow: 0 25px 80px rgba(0,0,0,0.6);
+}
+
+.demo-video{
+  width: 100%;
+  border-radius: 10px;
+}
+
+.demo-close{
+  position:absolute;
+  top:-14px;
+  right:-14px;
+
+  width:36px;
+  height:36px;
+
+  border-radius:50%;
+  border:none;
+
+  background:white;
+  font-size:18px;
+  cursor:pointer;
+
+  box-shadow:0 4px 10px rgba(0,0,0,0.4);
 }

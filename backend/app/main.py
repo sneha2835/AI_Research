@@ -27,7 +27,7 @@ app = FastAPI(
 # http://localhost:8001/pdf_uploads/<document_id>.pdf
 app.mount(
     "/pdf_uploads",
-    StaticFiles(directory="backend/pdf_uploads"),
+    StaticFiles(directory="pdf_uploads"),
     name="pdf_uploads",
 )
 
@@ -54,8 +54,8 @@ app.include_router(chat_router)
 async def startup():
     logging.info("🚀 Backend started successfully")
     # Optional: enable these later if needed
-    # await check_mongo_connection()
-    # await create_indexes()
+    await check_mongo_connection()
+    await create_indexes()
     pass
 
 

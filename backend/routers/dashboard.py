@@ -9,22 +9,36 @@ dashboard_router = APIRouter(
     tags=["Dashboard"]
 )
 
-
 # ==================================================
 # 📊 DASHBOARD STATS
 # ==================================================
-
 @dashboard_router.get("/stats")
 async def get_dashboard_stats(current_user=Depends(get_current_user)):
 
     user_id = current_user["_id"]
 
-    summary_count = await db.chat_history.count_documents({
-        "user_id": user_id,
-        "type": "summary"
+    # 1️⃣ Upload count (no duplicates possible)
+    upload_count = await db.documents.count_documents({
+        "owner": user_id,
+        "source": "upload"
     })
 
-    unique_documents = await db.chat_history.distinct(
+    # 2️⃣ Unique analyzed documents (no duplicate counting)
+    analyzed_documents = await db.chat_history.distinct(
+        "document_id",
+        {
+            "user_id": user_id,
+            "$or": [
+                {"type": "qa"},
+                {"type": "summary"}
+            ]
+        }
+    )
+
+    analyzed_count = len(analyzed_documents)
+
+    # 3️⃣ Chat sessions (unique docs with QA)
+    chat_documents = await db.chat_history.distinct(
         "document_id",
         {
             "user_id": user_id,
@@ -32,14 +46,20 @@ async def get_dashboard_stats(current_user=Depends(get_current_user)):
         }
     )
 
-    chat_count = len(unique_documents)
+    chat_count = len(chat_documents)
+
+    # 4️⃣ Summary count (total summaries generated)
+    summary_count = await db.chat_history.count_documents({
+        "user_id": user_id,
+        "type": "summary"
+    })
 
     return {
-        "summaryCount": summary_count,
-        "chatCount": chat_count
+        "uploads": upload_count,
+        "analyzed": analyzed_count,
+        "chatCount": chat_count,
+        "summaryCount": summary_count
     }
-
-
 # ==================================================
 # 💬 CHAT SESSIONS
 # ==================================================
@@ -103,7 +123,7 @@ async def get_summaries(current_user=Depends(get_current_user)):
 
 
 # ==================================================
-# 👤 PROFILE (NEW)
+# 👤 PROFILE
 # ==================================================
 
 @dashboard_router.get("/profile")

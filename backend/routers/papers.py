@@ -13,11 +13,12 @@ import os
 
 papers_router = APIRouter(prefix="/papers", tags=["Papers"])
 
-UPLOAD_DIR = "backend/pdf_uploads"
+UPLOAD_DIR = "pdf_uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+
 # ==================================================
-# 🔥 Recent arXiv papers (Dashboard)
+# 🔥 Recent arXiv papers
 # ==================================================
 
 @papers_router.get("/recent")
@@ -44,6 +45,7 @@ async def get_recent_papers(
         p["_id"] = str(p["_id"])
 
     return papers
+
 
 # ==================================================
 # 🔍 Semantic search over arXiv abstracts
@@ -80,10 +82,10 @@ async def search_papers(
 
     return papers
 
+
 # ==================================================
-# 🕘 Recently viewed (DEDUPED)
+# 🕘 Recently viewed
 # ==================================================
-from bson import ObjectId
 
 @papers_router.get("/recently-viewed")
 async def get_recently_viewed(
@@ -113,9 +115,6 @@ async def get_recently_viewed(
             "viewed_at": v.get("viewed_at"),
         }
 
-        # ==========================
-        # 🟢 ARXIV PAPER
-        # ==========================
         if v.get("type") == "arxiv":
 
             paper = await db.research_papers.find_one(
@@ -130,12 +129,9 @@ async def get_recently_viewed(
                 "abstract": paper.get("abstract"),
                 "published": paper.get("published"),
                 "document_id": str(v.get("document_id")),
-                "pdf_url": paper.get("pdf_url")  # ✅ USE STORED URL
+                "pdf_url": paper.get("pdf_url")
             })
 
-        # ==========================
-        # 🟢 UPLOADED PDF
-        # ==========================
         else:
             doc_id = v.get("document_id")
 
@@ -154,7 +150,7 @@ async def get_recently_viewed(
 
 
 # ==================================================
-# 📄 Paper details (VIEW ABSTRACT)
+# 📄 Paper details
 # ==================================================
 
 @papers_router.get("/{paper_id}")
@@ -190,9 +186,8 @@ async def get_paper_details(
     return paper
 
 
-
 # ==================================================
-# 🧠 Analyze / process arXiv paper (FIXED)
+# 🧠 Analyze / Process arXiv paper
 # ==================================================
 
 @papers_router.post("/analyze/{paper_id}")
@@ -209,18 +204,16 @@ async def analyze_arxiv_paper(
 
     document = await get_or_create_arxiv_document(paper)
 
-    # 🔒 ATOMIC LOCK: prevent double indexing
+    # 🔒 Lock to prevent double indexing
     locked = await db.documents.find_one_and_update(
         {
             "_id": document["_id"],
-            "indexed": False,
-            "processing": False,
+            "processing": {"$ne": True},
         },
         {"$set": {"processing": True}},
         return_document=True,
     )
 
-    # Another request is already processing or indexed
     if not locked:
         return {"document_id": str(document["_id"])}
 
@@ -232,6 +225,7 @@ async def analyze_arxiv_paper(
                 pdf_bytes = await resp.read()
 
         pdf_path = os.path.join(UPLOAD_DIR, f"{document['_id']}.pdf")
+
         with open(pdf_path, "wb") as f:
             f.write(pdf_bytes)
 
@@ -244,27 +238,17 @@ async def analyze_arxiv_paper(
 
         await extract_and_index_pdf(document)
 
+        # Ensure clean state
         await db.documents.update_one(
             {"_id": document["_id"]},
-            {"$set": {"ready_for_chat": True}},
+            {
+                "$set": {
+                    "ready_for_chat": True,
+                    "indexed": True,
+                    "processing": False,
+                }
+            },
         )
-
-        exists = await db.chat_history.find_one({
-            "document_id": document["_id"],
-            "user_id": current_user["_id"],
-            "type": "system",
-        })
-
-        if not exists:
-            await db.chat_history.insert_one({
-                "document_id": document["_id"],
-                "user_id": current_user["_id"],
-                "role": "assistant",
-                "type": "system",
-                "content": "This paper is now ready for Q&A and summarization.",
-                "source": "arxiv",
-                "timestamp": datetime.utcnow(),
-            })
 
     finally:
         await db.documents.update_one(
@@ -292,11 +276,10 @@ async def analyze_arxiv_paper(
 
     return {"document_id": str(document["_id"])}
 
+
 @papers_router.post("/process/{paper_id}")
 async def process_arxiv_paper(
     paper_id: str,
     current_user=Depends(get_current_user),
 ):
     return await analyze_arxiv_paper(paper_id, current_user)
-
-

@@ -41,31 +41,24 @@ langchain-community==0.3.27
 langchain-chroma==0.2.5
 
 # =========================
-# Vector Store
+# Vector Store / Embeddings
 # =========================
 chromadb==1.0.15
 sentence-transformers==3.4.1
-
-# =========================
-# ML / LLM
-# =========================
 torch==2.7.1
-transformers==4.57.3
-accelerate==1.10.1
-sentencepiece==0.2.0
 
 # =========================
 # PDF & Research
 # =========================
 pypdf==5.9.0
-pdfplumber==0.11.7
 arxiv==2.1.0
 
 # =========================
-# HTTP
+# HTTP (Ollama + Web calls)
 # =========================
-aiohttp==3.12.15
+requests==2.32.3
 httpx==0.28.1
+aiohttp==3.12.15
 
-# python -m scripts.fetch_arxiv to fetch latest arxiv papers and update the requirements file accordingly.
-# python -m scripts.reindex_research_papers to reindex the papers after updating the requirements file.
+
+#python -m scripts.fetch_arxiv

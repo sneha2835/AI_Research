@@ -34,6 +34,7 @@ export default function Papers() {
           placeholder="Search by keyword..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleSearch()}
         />
         <button onClick={handleSearch} disabled={loading}>
           {loading ? "Searching..." : "Search"}
@@ -48,11 +49,13 @@ export default function Papers() {
         {results.map((paper) => (
           <div key={paper._id} className="paper-card">
             <h3>{paper.title}</h3>
+
             <p>
               {paper.abstract
-                ? paper.abstract.slice(0, 200) + "..."
+                ? paper.abstract.slice(0, 220) + "..."
                 : "No abstract available."}
             </p>
+
             <button onClick={() => setSelectedPaper(paper)}>
               View
             </button>
@@ -201,24 +204,85 @@ function SummaryModal({ documentId, paper, onClose }) {
 
   return (
     <div className="overlay">
-      <div className="summary-modal">
+      <div className="summary-modal upgraded">
 
-        <div className="summary-header">
-          <h3>Summary: {paper.title}</h3>
-          <button onClick={onClose}>✕</button>
+        <div className="summary-header upgraded">
+          <h2>{paper.title}</h2>
+          <button className="close-btn" onClick={onClose}>✕</button>
         </div>
 
-        <div className="summary-body">
-          {loading ? "Generating summary..." : summary}
+        <div className="summary-body upgraded">
+          {loading ? (
+            <div className="summary-loading">
+              <p>Generating professional academic summary...</p>
+            </div>
+          ) : (
+            <StructuredSummary text={summary} />
+          )}
         </div>
 
         {!loading && (
-          <button onClick={downloadPDF}>
-            Download Summary as PDF
-          </button>
+          <div className="summary-footer">
+            <button onClick={downloadPDF}>
+              Download Summary as PDF
+            </button>
+          </div>
         )}
 
       </div>
+    </div>
+  );
+}
+
+/* ====================== STRUCTURED SUMMARY ====================== */
+
+function StructuredSummary({ text }) {
+  if (!text) return null;
+
+  const sections = {};
+  let currentSection = null;
+
+  const sectionMap = {
+    objective: "Objective",
+    problem: "Problem Being Addressed",
+    methodology: "Methodology",
+    method: "Methodology",
+    "key findings": "Key Findings",
+    findings: "Key Findings",
+    conclusion: "Conclusion",
+    limitations: "Limitations",
+  };
+
+  text.split("\n").forEach((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+
+    const lower = trimmed.toLowerCase();
+
+    const matchedSection = Object.keys(sectionMap).find(key =>
+      lower.startsWith(key)
+    );
+
+    if (matchedSection) {
+      currentSection = sectionMap[matchedSection];
+      sections[currentSection] = trimmed.replace(/^[^:]*:/, "").trim();
+    } else if (currentSection) {
+      sections[currentSection] += " " + trimmed;
+    }
+  });
+
+  if (Object.keys(sections).length === 0) {
+    return <p style={{ whiteSpace: "pre-wrap" }}>{text}</p>;
+  }
+
+  return (
+    <div className="structured-summary">
+      {Object.entries(sections).map(([title, content], index) => (
+        <div key={index} className="summary-section">
+          <h4>{title}</h4>
+          <p>{content}</p>
+        </div>
+      ))}
     </div>
   );
 }

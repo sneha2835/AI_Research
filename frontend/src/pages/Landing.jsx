@@ -1,17 +1,34 @@
 import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import PublicNavbar from "../components/PublicNavbar";
 
 export default function Landing() {
+  const [showDemo, setShowDemo] = useState(false);
+
+  // Close modal with ESC key
+  useEffect(() => {
+    const handleEsc = (e) => {
+      if (e.key === "Escape") {
+        setShowDemo(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleEsc);
+    return () => window.removeEventListener("keydown", handleEsc);
+  }, []);
+
+  const modalRoot = document.getElementById("modal-root");
+
   return (
     <div className="landing-wrapper">
 
-      {/* ================= NAVBAR ================= */}
+      {/* NAVBAR */}
       <PublicNavbar />
 
-      {/* ================= HERO ================= */}
+      {/* HERO */}
       <section className="hero">
 
-        {/* LEFT SIDE */}
         <div className="hero-left">
           <h1>
             Where Research Meets <span>Intelligence</span>
@@ -26,7 +43,10 @@ export default function Landing() {
               Get Started
             </Link>
 
-            <button className="btn-secondary">
+            <button
+              className="btn-secondary"
+              onClick={() => setShowDemo(true)}
+            >
               Watch Demo
             </button>
           </div>
@@ -57,9 +77,10 @@ export default function Landing() {
             </div>
           </div>
         </div>
+
       </section>
 
-      {/* ================= FEATURES ================= */}
+      {/* FEATURES */}
       <section className="features">
 
         <div className="feature-card">
@@ -87,6 +108,39 @@ export default function Landing() {
         </div>
 
       </section>
+
+      {/* DEMO MODAL */}
+      {showDemo && modalRoot &&
+        createPortal(
+          <div
+            className="demo-overlay"
+            onClick={() => setShowDemo(false)}
+          >
+            <div
+              className="demo-modal"
+              onClick={(e) => e.stopPropagation()}
+            >
+
+              <button
+                className="demo-close"
+                onClick={() => setShowDemo(false)}
+              >
+                ✕
+              </button>
+
+              <video
+                className="demo-video"
+                controls
+                autoPlay
+              >
+                <source src="/Major_Proj_Demo.mp4" type="video/mp4" />
+                Your browser does not support the video tag.
+              </video>
+
+            </div>
+          </div>,
+          modalRoot
+        )}
 
     </div>
   );

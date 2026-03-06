@@ -1,105 +1,78 @@
-import threading
-from transformers import pipeline
+# app/llm_inference.py
+
+import requests
 from app.config import settings
 
-# ==================================================
-# 🔒 Thread-safe lazy loading
-# ==================================================
 
-_lock = threading.Lock()
-
-_qa_pipeline = None
-_summary_pipeline = None
-
-# ==================================================
-# 🧠 Loaders
-# ==================================================
-
-def _load_qa_pipeline():
-    global _qa_pipeline
-    if _qa_pipeline is not None:
-        return
-
-    with _lock:
-        if _qa_pipeline is not None:
-            return
-
-        _qa_pipeline = pipeline(
-            "text2text-generation",
-            model=settings.HF_QA_MODEL,
-            token=settings.HF_TOKEN,
-            max_new_tokens=256,
-            do_sample=False,
-            repetition_penalty=1.8,
-            no_repeat_ngram_size=3,
+def _call_ollama(prompt: str) -> str:
+    try:
+        response = requests.post(
+            f"{settings.OLLAMA_BASE_URL}/api/generate",
+            json={
+                "model": settings.OLLAMA_MODEL,
+                "prompt": prompt,
+                "stream": False,
+                "options": {
+                    "temperature": settings.LLM_TEMP,
+                    "num_predict": settings.LLM_MAX_TOKENS,
+                },
+            },
+            timeout=300,
         )
 
+        if response.status_code != 200:
+            print("⚠️ Ollama HTTP error:", response.text)
+            return ""
 
-def _load_summary_pipeline():
-    global _summary_pipeline
-    if _summary_pipeline is not None:
-        return
+        data = response.json()
+        print("RAW OLLAMA RESPONSE:", data)  # <-- Debug here
 
-    with _lock:
-        if _summary_pipeline is not None:
-            return
+        return data.get("response", "").strip()
 
-        _summary_pipeline = pipeline(
-            "summarization",
-            model=settings.HF_SUMMARY_MODEL,
-            token=settings.HF_TOKEN,
-            max_length=240,
-            min_length=80,
-            do_sample=False,
-            repetition_penalty=2.0,
-            no_repeat_ngram_size=3,
-        )
+    except Exception as e:
+        print("⚠️ Ollama call failed:", e)
+        return ""
 
-# ==================================================
-# ❓ Question answering
-# ==================================================
+# --------------------------------------------------
+# Generic Generation
+# --------------------------------------------------
 
-def answer_from_context(prompt: str) -> str:
-    """
-    Expects a fully-formed prompt.
-    Backend does NOT add logic here.
-    """
-
+def generate_text(prompt: str) -> str:
     if not prompt or not prompt.strip():
         return ""
+    return _call_ollama(prompt)
 
-    _load_qa_pipeline()
 
-    try:
-        result = _qa_pipeline(prompt, truncation=True)
-    except Exception:
-        return ""
+# --------------------------------------------------
+# Follow-up Generator
+# --------------------------------------------------
 
-    if not result:
-        return ""
+def generate_followups(question: str, answer: str) -> list[str]:
+    followup_prompt = f"""
+You are a research assistant.
 
-    return result[0].get("generated_text", "").strip()
+Based on this conversation:
 
-# ==================================================
-# 📝 Summarization
-# ==================================================
+Question:
+{question}
 
-def summarize_text(prompt: str) -> str:
-    """
-    Expects a structured summarization prompt.
-    """
+Answer:
+{answer}
 
-    if not prompt or not prompt.strip():
-        return ""
+Generate exactly 3 short and relevant follow-up questions.
+Return them as a numbered list.
+Do not include explanations.
+""".strip()
 
-    _load_summary_pipeline()
+    raw = _call_ollama(followup_prompt)
 
-    try:
-        result = _summary_pipeline(prompt, truncation=True)
-    except Exception:
-        return ""
+    if not raw:
+        return []
 
-    if not result:
-        return ""
+    lines = [
+        line.strip().lstrip("1234567890. ").strip()
+        for line in raw.split("\n")
+        if line.strip()
+    ]
 
-    return result[0].get("summary_text", "").strip()
+    return lines[:3]

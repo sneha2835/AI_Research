@@ -3,7 +3,7 @@
 from pymongo import MongoClient
 from app.config import settings
 from app.chroma_store import add_research_abstracts
-
+from app.chroma_store import research_vector_store
 
 def main():
     print("🔁 Re-indexing research papers into Chroma...")
@@ -16,6 +16,9 @@ def main():
     if not papers:
         print("❌ No papers found")
         return
+
+    print("🧹 Clearing existing research_papers collection...")
+    research_vector_store.delete(where={})
 
     abstracts, metadatas, ids = [], [], []
 

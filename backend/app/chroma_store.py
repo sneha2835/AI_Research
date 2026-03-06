@@ -9,6 +9,7 @@ from sentence_transformers import SentenceTransformer
 from langchain_chroma import Chroma
 from app.config import settings
 
+
 # --------------------------------------------------
 # Persistent Chroma directory
 # --------------------------------------------------
@@ -18,48 +19,88 @@ os.makedirs(PERSIST_DIR, exist_ok=True)
 
 print("🔥 Chroma persist directory:", PERSIST_DIR)
 
-# --------------------------------------------------
-# Embedding model
-# --------------------------------------------------
 
-_embedding_model = SentenceTransformer(settings.SENTENCE_EMBED_MODEL)
-
+# --------------------------------------------------
+# Safe SentenceTransformer Wrapper
+# --------------------------------------------------
 
 class SentenceTransformerEmbedder:
     """
-    Wrapper to match LangChain embedding interface.
+    Safe wrapper for SentenceTransformer.
+    Prevents tokenizer crashes from bad inputs.
     """
 
     def __init__(self, model):
         self.model = model
 
     def embed_documents(self, texts):
-        texts = [f"passage: {t}" for t in texts]
-        return self.model.encode(
-            texts,
+
+        safe_texts = []
+
+        for t in texts:
+            if t is None:
+                continue
+
+            if not isinstance(t, str):
+                t = str(t)
+
+            cleaned = t.strip()
+
+            if not cleaned:
+                continue
+
+            safe_texts.append(f"passage: {cleaned}")
+
+        if not safe_texts:
+            return []
+
+        embeddings = self.model.encode(
+            safe_texts,
             normalize_embeddings=True,
             show_progress_bar=False,
-        ).tolist()
+        )
+
+        return embeddings.tolist()
 
     def embed_query(self, text):
-        text = f"query: {text}"
-        return self.model.encode(
-            [text],
+
+        if text is None:
+            text = ""
+
+        if not isinstance(text, str):
+            text = str(text)
+
+        cleaned = text.strip()
+
+        if not cleaned:
+            cleaned = "empty"
+
+        embedding = self.model.encode(
+            [f"query: {cleaned}"],
             normalize_embeddings=True,
             show_progress_bar=False,
-        )[0].tolist()
+        )
 
+        return embedding[0].tolist()
 
-_embedder = SentenceTransformerEmbedder(_embedding_model)
 
 # --------------------------------------------------
-# Persistent Chroma client (single instance)
+# Initialize Embedding Model
+# --------------------------------------------------
+
+_embedding_model = SentenceTransformer(settings.SENTENCE_EMBED_MODEL)
+_embedder = SentenceTransformerEmbedder(_embedding_model)
+
+
+# --------------------------------------------------
+# Persistent Chroma Client
 # --------------------------------------------------
 
 client = chromadb.PersistentClient(path=PERSIST_DIR)
 
+
 # --------------------------------------------------
-# 📚 Research papers (arXiv abstracts)
+# 📚 Research Papers (arXiv abstracts)
 # --------------------------------------------------
 
 research_vector_store = Chroma(
@@ -70,30 +111,41 @@ research_vector_store = Chroma(
 
 
 def add_research_abstracts(abstracts, metadatas, ids):
-    """
-    Adds arXiv abstracts to vector store.
-    Metadata must include:
-      - paper_id
-      - source = 'arxiv'
-    """
+
     if not settings.ENABLE_CHROMA or not abstracts:
         return
 
+    safe_abstracts = []
+
+    for a in abstracts:
+        if not a:
+            continue
+        if not isinstance(a, str):
+            a = str(a)
+        cleaned = a.strip()
+        if cleaned:
+            safe_abstracts.append(cleaned)
+
+    if not safe_abstracts:
+        return
+
     research_vector_store.add_texts(
-        texts=abstracts,
+        texts=safe_abstracts,
         metadatas=metadatas,
         ids=ids,
     )
 
 
 def search_research_papers(query, n_results=5):
+
     return research_vector_store.similarity_search(
-        query=query,
+        query=str(query),
         k=min(n_results, 15),
     )
 
+
 # --------------------------------------------------
-# 📄 PDF chunks (uploads + arXiv)
+# 📄 PDF Chunks (uploads + arXiv)
 # --------------------------------------------------
 
 pdf_vector_store = Chroma(
@@ -102,14 +154,11 @@ pdf_vector_store = Chroma(
     embedding_function=_embedder,
 )
 
-# 🔑 Constant owner for shared (arXiv) documents
+# Shared owner for global (arXiv) docs
 GLOBAL_OWNER = "GLOBAL"
 
 
 def add_chunks_to_chroma(chunks, doc_id: str):
-    """
-    Stores PDF chunks with STRICT metadata normalization.
-    """
 
     if not settings.ENABLE_CHROMA or not chunks:
         return
@@ -117,7 +166,7 @@ def add_chunks_to_chroma(chunks, doc_id: str):
     texts, metadatas, ids = [], [], []
 
     for i, c in enumerate(chunks):
-        # Accept both dicts and LangChain Documents
+
         if isinstance(c, dict):
             content = c.get("page_content")
             metadata = c.get("metadata", {})
@@ -125,22 +174,29 @@ def add_chunks_to_chroma(chunks, doc_id: str):
             content = getattr(c, "page_content", None)
             metadata = getattr(c, "metadata", {}) or {}
 
-        # Skip empty or invalid content
-        if not content or not str(content).strip():
+        if content is None:
+            continue
+
+        if not isinstance(content, str):
+            content = str(content)
+
+        cleaned = content.strip()
+
+        if not cleaned:
             continue
 
         metadata_id = metadata.get("metadata_id")
         if not metadata_id:
-            # Hard safety: never index without document linkage
             continue
 
-        owner = metadata.get("user_id") or GLOBAL_OWNER
+        owner = metadata.get("user_id")
+        owner = str(owner) if owner else GLOBAL_OWNER
 
-        texts.append(content)
+        texts.append(cleaned)
 
         metadatas.append({
             "metadata_id": str(metadata_id),
-            "user_id": str(owner),
+            "user_id": owner,
             "section": metadata.get("section") or "body",
         })
 
@@ -161,22 +217,19 @@ def semantic_search(
     user_id=None,
     section_priority=False,
 ):
-    """
-    Unified semantic search with optional filters.
-    """
 
     filters = []
 
     if metadata_id:
         filters.append({"metadata_id": str(metadata_id)})
 
-    # 🔑 Deterministic owner filtering
-    owner_filter = user_id if user_id is not None else GLOBAL_OWNER
-    filters.append({"user_id": str(owner_filter)})
+    owner_filter = str(user_id) if user_id else GLOBAL_OWNER
+    filters.append({"user_id": owner_filter})
 
     # --------------------------------------------------
-    # Priority search: abstract + introduction
+    # Priority Search (abstract + introduction)
     # --------------------------------------------------
+
     if section_priority:
         priority_filters = filters + [
             {"section": {"$in": ["abstract", "introduction"]}}
@@ -189,7 +242,7 @@ def semantic_search(
         )
 
         results = pdf_vector_store.similarity_search_with_score(
-            query=query,
+            query=str(query),
             k=n_results,
             filter=priority_filter,
         )
@@ -198,12 +251,17 @@ def semantic_search(
             return [doc for doc, _ in results]
 
     # --------------------------------------------------
-    # Normal search fallback
+    # Fallback Search
     # --------------------------------------------------
-    combined_filter = filters[0] if len(filters) == 1 else {"$and": filters}
+
+    combined_filter = (
+        filters[0]
+        if len(filters) == 1
+        else {"$and": filters}
+    )
 
     results = pdf_vector_store.similarity_search_with_score(
-        query=query,
+        query=str(query),
         k=n_results,
         filter=combined_filter,
     )

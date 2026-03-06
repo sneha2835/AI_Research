@@ -18,10 +18,12 @@ export default function ResumeChat() {
   useEffect(() => {
     const ensureReady = async () => {
       try {
-        await api.get(`/chat/${documentId}`);
-        setReadyDocId(documentId);
-      } catch (err) {
-        console.error("Resume chat failed", err);
+        const res = await api.get(`/chat/${documentId}`);
+        if (res.data?.messages) {
+          setReadyDocId(documentId);
+        }
+      } catch {
+        console.error("Resume chat failed");
       } finally {
         setLoading(false);
       }
@@ -31,19 +33,11 @@ export default function ResumeChat() {
   }, [documentId]);
 
   if (loading) {
-    return (
-      <div style={{ padding: "40px", textAlign: "center" }}>
-        Loading chat...
-      </div>
-    );
+    return <div style={{ padding: "40px", textAlign: "center" }}>Loading chat...</div>;
   }
 
   if (!readyDocId) {
-    return (
-      <div style={{ padding: "40px", textAlign: "center" }}>
-        Failed to load chat session.
-      </div>
-    );
+    return <div style={{ padding: "40px", textAlign: "center" }}>Failed to load chat session.</div>;
   }
 
   return (

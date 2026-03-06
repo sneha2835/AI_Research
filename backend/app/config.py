@@ -23,34 +23,27 @@ class Settings(BaseSettings):
     DB_NAME: str = "research_db"
 
     # --------------------
-    # Vector store / Chroma
+    # Vector Store / Chroma
     # --------------------
     CHROMA_PERSIST_DIR: str = "./chroma_persist"
     SENTENCE_EMBED_MODEL: str = "BAAI/bge-base-en-v1.5"
     ENABLE_CHROMA: bool = True
 
     # --------------------
-    # LLM / HuggingFace
+    # Ollama (Local LLM)
     # --------------------
-    HF_QA_MODEL: str = "google/flan-t5-large"
-    HF_SUMMARY_MODEL: str = "google/pegasus-arxiv"
-    HF_TOKEN: str | None = None
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_MODEL: str = "phi3:mini"
+    LLM_TEMP: float = 0.2
+    LLM_MAX_TOKENS: int = 1000
 
     # --------------------
-    # Groq API
-    # --------------------
-    GROQ_API_KEY: str | None = None
-    GROQ_MODEL: str = "llama-3.3-70b-versatile"
-    LLM_TEMP: float = 0.3
-    LLM_MAX_TOKENS: int = 2048
-
-    # --------------------
-    # MongoDB (alias)
+    # MongoDB (optional alias)
     # --------------------
     MONGO_URI: str | None = None
 
     # --------------------
-    # Pydantic v2 env config (ABSOLUTE PATH)
+    # Pydantic v2 env config
     # --------------------
     model_config = {
         "env_file": BASE_DIR / ".env",

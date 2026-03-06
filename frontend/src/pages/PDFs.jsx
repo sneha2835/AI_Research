@@ -51,7 +51,6 @@ export default function PDFs() {
 
       setFile(null);
       loadUploads();
-
     } catch (err) {
       console.error("Upload failed", err);
       alert("Upload failed. Please try again.");
@@ -175,7 +174,7 @@ function SummaryModal({ documentId, title, onClose }) {
           document_id: documentId,
         });
 
-        setSummary(res.data.summary || res.data || "");
+        setSummary(res.data.summary || "");
       } catch (err) {
         console.error("Summary failed", err);
         setSummary("Failed to generate summary.");
@@ -188,16 +187,86 @@ function SummaryModal({ documentId, title, onClose }) {
   }, [documentId]);
 
   const downloadPDF = () => {
-    if (!summary) {
-      alert("No summary available to download.");
-      return;
-    }
+    if (!summary) return;
 
     const doc = new jsPDF();
     const lines = doc.splitTextToSize(summary, 180);
-
     doc.text(lines, 10, 10);
     doc.save(`${title}_summary.pdf`);
+  };
+
+  /* ================= STRUCTURED RENDER ================= */
+
+  const renderStructuredSummary = (text) => {
+    if (!text) return null;
+
+    const sections = {};
+    let currentSection = null;
+
+    const sectionMap = {
+      "objective": "Objective",
+      "problem": "Problem Being Addressed",
+      "methodology": "Methodology",
+      "method": "Methodology",
+      "key findings": "Key Findings",
+      "findings": "Key Findings",
+      "conclusion": "Conclusion",
+      "limitations": "Limitations"
+    };
+
+    text.split("\n").forEach((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+
+      const lower = trimmed.toLowerCase();
+
+      const matchedSection = Object.keys(sectionMap).find(key =>
+        lower.startsWith(key)
+      );
+
+      if (matchedSection) {
+        currentSection = sectionMap[matchedSection];
+        sections[currentSection] = trimmed
+          .replace(/^[^:]*:/, "")
+          .trim();
+      } else if (currentSection) {
+        sections[currentSection] += "\n" + trimmed;
+      }
+    });
+
+    if (Object.keys(sections).length === 0) {
+      return <p style={{ whiteSpace: "pre-wrap" }}>{text}</p>;
+    }
+
+    return (
+      <div className="structured-summary">
+        {Object.entries(sections).map(([title, content], index) => {
+          const lines = content.split("\n");
+
+          const isBulletSection =
+            title === "Key Findings" &&
+            lines.some(line => line.match(/^(\d+\.|\d+\)|-)/));
+
+          return (
+            <div key={index} className="summary-section">
+              <h4>{title}</h4>
+
+              {isBulletSection ? (
+                <ul>
+                  {lines.map((line, i) => (
+                    <li key={i}>
+                      {line.replace(/^(\d+\.|\d+\)|-)\s*/, "")}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p>{content.replace(/\n/g, " ")}</p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
   };
 
   return (
@@ -209,8 +278,23 @@ function SummaryModal({ documentId, title, onClose }) {
           <button onClick={onClose}>✕</button>
         </div>
 
-        <div className="summary-body">
-          {loading ? "Generating summary..." : summary}
+        <div
+          className="summary-body"
+          style={{ maxHeight: "65vh", overflowY: "auto" }}
+        >
+          {loading ? (
+            <div style={{ textAlign: "center", padding: "40px" }}>
+              <div className="spinner"></div>
+              <p style={{ marginTop: "15px" }}>
+                Generating detailed academic summary...
+              </p>
+              <p style={{ fontSize: "13px", opacity: 0.7 }}>
+                This may take up to 2–3 minutes depending on document size.
+              </p>
+            </div>
+          ) : (
+            renderStructuredSummary(summary)
+          )}
         </div>
 
         {!loading && (
