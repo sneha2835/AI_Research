@@ -26,10 +26,10 @@ venv.bak/
 .local/
 *.test.env
 
-# Google / service credentials
-*.json
-!package.json
-!tsconfig.json
+# Service credentials
+credentials.json
+service_account.json
+google_credentials.json
 
 # ==============================
 # DATABASES
@@ -45,11 +45,10 @@ mongodb_data/
 chroma_persist/
 
 # ==============================
-# FILE UPLOADS (IMPORTANT)
+# FILE UPLOADS (USER DATA)
 # ==============================
 
 **/pdf_uploads/
-*.pdf
 
 # ==============================
 # MACHINE LEARNING / MODELS
@@ -65,6 +64,8 @@ grobid/
 !grobid/.gitkeep
 
 *.gguf
+*.pt
+*.pth
 
 # ==============================
 # NODE / FRONTEND
@@ -119,3 +120,10 @@ Thumbs.db
 start_backend.bat
 start_frontend.bat
 *.bat
+
+# ==============================
+# TEMP FILES
+# ==============================
+
+*.tmp
+*.temp
