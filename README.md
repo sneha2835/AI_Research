@@ -287,4 +287,10 @@ npm run dev
 * Dockerized Deployment
 
 ---
+🎥 Demo
+
+Project demo video available inside:
+
+frontend/public/Major_Proj_Demo.mp4
+---
 
