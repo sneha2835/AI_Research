@@ -18,6 +18,13 @@ export default function Landing() {
     return () => window.removeEventListener("keydown", handleEsc);
   }, []);
 
+  // ⭐ Ensure modal always opens at top of viewport
+  useEffect(() => {
+    if (showDemo) {
+      window.scrollTo({ top: 0, behavior: "instant" });
+    }
+  }, [showDemo]);
+
   const modalRoot = document.getElementById("modal-root");
 
   return (

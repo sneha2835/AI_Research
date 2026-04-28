@@ -194,10 +194,10 @@ body {
 
 .demo-overlay{
   position: fixed;
-  top:0;
-  left:0;
-  width:100vw;
-  height:100vh;
+  inset: 0;                 /* ensures full viewport coverage */
+
+  width: 100vw;
+  height: 100vh;
 
   display:flex;
   justify-content:center;
@@ -206,7 +206,9 @@ body {
   background: rgba(0,0,0,0.55);
   backdrop-filter: blur(10px);
 
-  z-index: 2147483647; /* force above everything */
+  z-index: 2147483647;
+
+  overflow: hidden;         /* prevents page scroll shift */
 }
 
 .demo-modal{
@@ -221,6 +223,8 @@ body {
   padding: 10px;
 
   box-shadow: 0 25px 80px rgba(0,0,0,0.6);
+
+  margin: 0 auto;           /* keeps it perfectly centered */
 }
 
 .demo-video{
